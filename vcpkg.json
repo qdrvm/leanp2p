@@ -6,7 +6,11 @@
     "boost-beast",
     "boost-di",
     "boost-program-options",
-    "liblsquic"
+    "fmt",
+    "liblsquic",
+    "soralog",
+    "qtils",
+    "zlib"
   ]
 }
 
