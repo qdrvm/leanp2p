@@ -6,11 +6,10 @@
 
 #pragma once
 
-// #include <boost/signals2/connection.hpp>
+#include <coroutine>
 #include <functional>
 #include <memory>
 #include <vector>
-#include <coroutine>
 
 #include <libp2p/basic/closeable.hpp>
 #include <libp2p/connection/capable_connection.hpp>
@@ -20,48 +19,44 @@ namespace libp2p::transport {
 
   /**
    * Async generator for yielding incoming connections
+   * @tparam T - type of generated values
    */
-  template<typename T>
-  class AsyncGenerator {
-  public:
+  template <typename T>
+  struct AsyncGenerator {
     struct promise_type {
-      T current_value;
-      std::exception_ptr exception_;
+      std::optional<T> current_value;
+      std::exception_ptr exception;
 
-      AsyncGenerator get_return_object() {
-        return AsyncGenerator{std::coroutine_handle<promise_type>::from_promise(*this)};
+      auto get_return_object() {
+        return AsyncGenerator{
+            std::coroutine_handle<promise_type>::from_promise(*this)};
       }
 
-      std::suspend_always initial_suspend() { return {}; }
-      std::suspend_always final_suspend() noexcept { return {}; }
-
-      std::suspend_always yield_value(T value) {
-        current_value = std::move(value);
+      std::suspend_always initial_suspend() {
+        return {};
+      }
+      std::suspend_always final_suspend() noexcept {
         return {};
       }
 
-      void return_void() {}
-
       void unhandled_exception() {
-        exception_ = std::current_exception();
+        exception = std::current_exception();
       }
 
-      boost::asio::awaitable<bool> await_transform(boost::asio::awaitable<T>&& awaitable) {
-        try {
-          current_value = co_await std::move(awaitable);
-          co_return true;
-        } catch (...) {
-          exception_ = std::current_exception();
-          co_return false;
-        }
+      void return_void() {}
+      auto yield_value(T value) {
+        current_value.emplace(std::move(value));
+        return std::suspend_always{};
       }
     };
 
     using handle_type = std::coroutine_handle<promise_type>;
+    handle_type handle_;
 
     explicit AsyncGenerator(handle_type h) : handle_(h) {}
 
-    AsyncGenerator(AsyncGenerator&& other) noexcept : handle_(std::exchange(other.handle_, {})) {}
+    AsyncGenerator(AsyncGenerator &&other) noexcept
+        : handle_(std::exchange(other.handle_, {})) {}
 
     ~AsyncGenerator() {
       if (handle_) {
@@ -69,7 +64,7 @@ namespace libp2p::transport {
       }
     }
 
-    AsyncGenerator& operator=(AsyncGenerator&& other) noexcept {
+    AsyncGenerator &operator=(AsyncGenerator &&other) noexcept {
       if (this != &other) {
         if (handle_) {
           handle_.destroy();
@@ -79,33 +74,30 @@ namespace libp2p::transport {
       return *this;
     }
 
-    AsyncGenerator(const AsyncGenerator&) = delete;
-    AsyncGenerator& operator=(const AsyncGenerator&) = delete;
-
-    boost::asio::awaitable<bool> next() {
-      if (!handle_ || handle_.done()) {
-        co_return false;
-      }
-
-      handle_.resume();
-
-      if (handle_.promise().exception_) {
-        std::rethrow_exception(handle_.promise().exception_);
-      }
-
-      co_return !handle_.done();
+    T operator*() const {
+      return *handle_.promise().current_value;
     }
 
-    T current() const {
-      return handle_.promise().current_value;
-    }
+    auto operator co_await() {
+      struct awaiter {
+        handle_type handle;
 
-    bool done() const {
-      return !handle_ || handle_.done();
+        bool await_ready() {
+          return false;
+        }
+        auto await_suspend(std::coroutine_handle<> h) {
+          handle.resume();
+          return h;
+        }
+        T await_resume() {
+          if (handle.promise().exception) {
+            std::rethrow_exception(handle.promise().exception);
+          }
+          return std::move(*handle.promise().current_value);
+        }
+      };
+      return awaiter{handle_};
     }
-
-  private:
-    handle_type handle_;
   };
 
   /**
@@ -154,7 +146,8 @@ namespace libp2p::transport {
      * Asynchronously accept new connections as an async generator
      * @return AsyncGenerator that yields new CapableConnection results
      */
-    virtual AsyncGenerator<outcome::result<std::shared_ptr<connection::CapableConnection>>>
+    virtual AsyncGenerator<
+        outcome::result<std::shared_ptr<connection::CapableConnection>>>
     asyncAccept() = 0;
   };
 }  // namespace libp2p::transport

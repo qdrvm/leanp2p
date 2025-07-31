@@ -33,8 +33,7 @@ namespace libp2p::transport {
                  std::shared_ptr<boost::asio::ssl::context> ssl_context,
                  const muxer::MuxedConnectionConfig &mux_config,
                  PeerId local_peer,
-                 std::shared_ptr<crypto::marshaller::KeyMarshaller> key_codec,
-                 TransportListener::HandlerFunc handler);
+                 std::shared_ptr<crypto::marshaller::KeyMarshaller> key_codec);
 
     // Closeable
     bool isClosed() const override;
@@ -44,6 +43,10 @@ namespace libp2p::transport {
     outcome::result<void> listen(const Multiaddress &address) override;
     bool canListen(const Multiaddress &ma) const override;
     outcome::result<Multiaddress> getListenMultiaddr() const override;
+
+    AsyncGenerator<
+        outcome::result<std::shared_ptr<connection::CapableConnection>>>
+    asyncAccept() override;
 
    private:
     std::shared_ptr<boost::asio::io_context> io_context_;

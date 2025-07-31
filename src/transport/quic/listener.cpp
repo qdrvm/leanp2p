@@ -9,20 +9,20 @@
 #include <libp2p/transport/quic/listener.hpp>
 #include <libp2p/transport/tcp/tcp_util.hpp>
 
+#include "libp2p/transport/quic/error.hpp"
+
 namespace libp2p::transport {
   QuicListener::QuicListener(
       std::shared_ptr<boost::asio::io_context> io_context,
       std::shared_ptr<boost::asio::ssl::context> ssl_context,
       const muxer::MuxedConnectionConfig &mux_config,
       PeerId local_peer,
-      std::shared_ptr<crypto::marshaller::KeyMarshaller> key_codec,
-      TransportListener::HandlerFunc handler)
+      std::shared_ptr<crypto::marshaller::KeyMarshaller> key_codec)
       : io_context_{std::move(io_context)},
         ssl_context_{std::move(ssl_context)},
         mux_config_{mux_config},
         local_peer_{std::move(local_peer)},
-        key_codec_{std::move(key_codec)},
-        handler_{std::move(handler)} {}
+        key_codec_{std::move(key_codec)} {}
 
   outcome::result<void> QuicListener::listen(const Multiaddress &address) {
     OUTCOME_TRY(info, detail::asQuic(address));
@@ -43,7 +43,6 @@ namespace libp2p::transport {
                                                key_codec_,
                                                std::move(socket),
                                                false);
-    server_->onAccept(handler_);
     server_->start();
     return outcome::success();
   }
@@ -57,6 +56,28 @@ namespace libp2p::transport {
       return std::errc::not_connected;
     }
     return server_->local();
+  }
+
+  AsyncGenerator<
+      outcome::result<std::shared_ptr<connection::CapableConnection>>>
+  QuicListener::asyncAccept() {
+    if (not server_) {
+      co_yield QuicError::CANT_CREATE_CONNECTION;
+      co_return;
+    }
+    while (true) {
+      auto res = co_await server_->asyncAccept();
+      if (not res) {
+        co_yield res.error();
+        co_return;
+      }
+      auto &conn = res.value();
+      if (not conn) {
+        co_yield QuicError::CANT_CREATE_CONNECTION;
+        co_return;
+      }
+      co_yield std::move(conn);
+    }
   }
 
   bool QuicListener::isClosed() const {

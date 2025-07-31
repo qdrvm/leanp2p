@@ -7,14 +7,17 @@
 #pragma once
 
 #include <lsquic.h>
+
 #include <boost/asio/ip/udp.hpp>
 #include <boost/asio/steady_timer.hpp>
+#include <deque>
 #include <libp2p/multi/multiaddress.hpp>
 #include <libp2p/peer/peer_id.hpp>
 #include <memory>
 #include <optional>
 #include <qtils/bytes.hpp>
-#include <qtils/outcome.hpp>
+
+#include "libp2p/transport/transport_listener.hpp"
 
 namespace boost::asio {
   class io_context;
@@ -41,8 +44,6 @@ namespace libp2p::transport {
 }  // namespace libp2p::transport
 
 namespace libp2p::transport::lsquic {
-  using connection::QuicStream;
-
   struct Engine;
   struct ConnCtx;
   struct StreamCtx;
@@ -64,7 +65,7 @@ namespace libp2p::transport::lsquic {
     Engine *engine;
     lsquic_conn_t *ls_conn;
     std::optional<Connecting> connecting{};
-    std::optional<std::shared_ptr<QuicStream>> new_stream{};
+    std::optional<std::shared_ptr<connection::QuicStream>> new_stream{};
     std::weak_ptr<QuicConnection> conn{};
   };
 
@@ -74,7 +75,7 @@ namespace libp2p::transport::lsquic {
   struct StreamCtx {
     Engine *engine;
     lsquic_stream_t *ls_stream;
-    std::weak_ptr<QuicStream> stream{};
+    std::weak_ptr<connection::QuicStream> stream{};
     /**
      * Stream read operation arguments.
      */
@@ -84,8 +85,6 @@ namespace libp2p::transport::lsquic {
     };
     std::optional<Reading> reading{};
   };
-
-  using OnAccept = std::function<void(std::shared_ptr<QuicConnection>)>;
 
   /**
    * libp2p wrapper and adapter for lsquic server/client socket.
@@ -114,14 +113,15 @@ namespace libp2p::transport::lsquic {
     void connect(const boost::asio::ip::udp::endpoint &remote,
                  const PeerId &peer,
                  OnConnect cb);
-    outcome::result<std::shared_ptr<QuicStream>> newStream(ConnCtx *conn_ctx);
-    void onAccept(OnAccept cb) {
-      on_accept_ = std::move(cb);
-    }
+    outcome::result<std::shared_ptr<connection::QuicStream>> newStream(
+        ConnCtx *conn_ctx);
+    AsyncGenerator<outcome::result<std::shared_ptr<QuicConnection>>>
+    asyncAccept();
     void process();
 
    private:
     void readLoop();
+    void onConnection(outcome::result<std::shared_ptr<QuicConnection>> conn);
 
     std::shared_ptr<boost::asio::io_context> io_context_;
     std::shared_ptr<boost::asio::ssl::context> ssl_context_;
@@ -132,7 +132,6 @@ namespace libp2p::transport::lsquic {
     boost::asio::ip::udp::endpoint socket_local_;
     Multiaddress local_;
     lsquic_engine_t *engine_ = nullptr;
-    OnAccept on_accept_;
     bool started_ = false;
     std::optional<Connecting> connecting_;
     struct Reading {
@@ -141,5 +140,7 @@ namespace libp2p::transport::lsquic {
       boost::asio::ip::udp::endpoint remote;
     };
     Reading reading_;
+    std::deque<outcome::result<std::shared_ptr<QuicConnection>>> pending_conns_;
+    std::optional<std::function<void()>> resume_accept_;
   };
 }  // namespace libp2p::transport::lsquic

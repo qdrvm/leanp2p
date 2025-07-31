@@ -116,8 +116,8 @@ namespace libp2p::transport::lsquic {
       }
       if (op) {
         op->cb(res);
-      } else if (res) {
-        self->on_accept_(res.value());
+      } else {
+        self->onConnection(res);
       }
     };
     stream_if.on_new_stream = +[](void *void_self, lsquic_stream_t *stream) {
@@ -128,7 +128,7 @@ namespace libp2p::transport::lsquic {
       // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
       auto stream_ctx = new StreamCtx{self, stream};
       if (auto conn = conn_ctx->conn.lock()) {
-        auto stream = std::make_shared<QuicStream>(
+        auto stream = std::make_shared<connection::QuicStream>(
             conn, stream_ctx, conn_ctx->new_stream.has_value());
         stream_ctx->stream = stream;
         if (conn_ctx->new_stream) {
@@ -263,7 +263,7 @@ namespace libp2p::transport::lsquic {
     process();
   }
 
-  outcome::result<std::shared_ptr<QuicStream>> Engine::newStream(
+  outcome::result<std::shared_ptr<connection::QuicStream>> Engine::newStream(
       ConnCtx *conn_ctx) {
     if (conn_ctx->new_stream) {
       throw std::logic_error{"Engine::newStream invalid state"};
@@ -278,6 +278,28 @@ namespace libp2p::transport::lsquic {
       return QuicError::CANT_OPEN_STREAM;
     }
     return stream;
+  }
+
+  AsyncGenerator<outcome::result<std::shared_ptr<QuicConnection>>>
+  Engine::asyncAccept() {
+    while (true) {
+      if (pending_conns_.empty()) {
+        struct awaiter {
+          Engine *self;
+          bool await_ready() noexcept {
+            return !self->pending_conns_.empty();
+          }
+          void await_suspend(std::coroutine_handle<> h) noexcept {
+            self->resume_accept_ = [h] { h.resume(); };
+          }
+          void await_resume() noexcept {}
+        };
+        co_await awaiter{this};
+      }
+      auto conn = std::move(pending_conns_.front());
+      pending_conns_.pop_front();
+      co_yield conn;
+    }
   }
 
   void Engine::process() {
@@ -336,6 +358,14 @@ namespace libp2p::transport::lsquic {
                               this,
                               0);
       process();
+    }
+  }
+
+  void Engine::onConnection(
+      outcome::result<std::shared_ptr<QuicConnection>> conn) {
+    pending_conns_.push_back(std::move(conn));
+    if (resume_accept_) {
+      (*qtils::optionTake(resume_accept_))();
     }
   }
 }  // namespace libp2p::transport::lsquic
