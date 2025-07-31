@@ -17,8 +17,7 @@ namespace libp2p::transport::lsquic {
 }  // namespace libp2p::transport::lsquic
 
 namespace libp2p::connection {
-  class QuicStream : public Stream,
-                     public std::enable_shared_from_this<QuicStream> {
+  class QuicStream : public Stream {
    public:
     QuicStream(std::shared_ptr<transport::QuicConnection> conn,
                transport::lsquic::StreamCtx *stream_ctx,
@@ -32,9 +31,12 @@ namespace libp2p::connection {
     void operator=(QuicStream &&) = delete;
 
     // Coroutine-based methods
-    boost::asio::awaitable<outcome::result<size_t>> read(BytesOut out, size_t bytes) override;
-    boost::asio::awaitable<outcome::result<size_t>> readSome(BytesOut out, size_t bytes) override;
-    boost::asio::awaitable<std::error_code> writeSome(BytesIn in, size_t bytes) override;
+    boost::asio::awaitable<outcome::result<size_t>> read(BytesOut out,
+                                                         size_t bytes) override;
+    boost::asio::awaitable<outcome::result<size_t>> readSome(
+        BytesOut out, size_t bytes) override;
+    boost::asio::awaitable<std::error_code> writeSome(BytesIn in,
+                                                      size_t bytes) override;
 
     // Stream
     bool isClosedForRead() const override;
