@@ -1,0 +1,6 @@
+#ifndef MINI_LIBP2P_LIBRARY_H
+#define MINI_LIBP2P_LIBRARY_H
+
+void hello();
+
+#endif //MINI_LIBP2P_LIBRARY_H

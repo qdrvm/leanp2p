@@ -1,0 +1,12 @@
+{
+  "name": "mini-libp2p",
+  "version": "0.1.0",
+  "dependencies": [
+    "boost-asio",
+    "boost-beast",
+    "boost-di",
+    "boost-program-options",
+    "liblsquic"
+  ]
+}
+
