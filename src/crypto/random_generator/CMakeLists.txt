@@ -1,0 +1,13 @@
+#
+# Copyright Quadrivium LLC
+# All Rights Reserved
+# SPDX-License-Identifier: Apache-2.0
+#
+
+add_library(p2p_random_generator
+    boost_generator.cpp
+    )
+
+target_link_libraries(p2p_random_generator
+    Boost::random
+    )

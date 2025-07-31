@@ -5,9 +5,12 @@
     "boost-asio",
     "boost-beast",
     "boost-di",
+    "boost-filesystem",
     "boost-program-options",
     "fmt",
+    "protobuf",
     "liblsquic",
+    "libsecp256k1",
     "soralog",
     "qtils",
     "zlib"

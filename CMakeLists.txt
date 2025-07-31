@@ -9,6 +9,13 @@ find_package(OpenSSL CONFIG REQUIRED)
 find_package(soralog CONFIG REQUIRED)
 find_package(fmt CONFIG REQUIRED)
 find_package(yaml-cpp CONFIG REQUIRED)
+find_package(lsquic CONFIG REQUIRED)
+find_package(ZLIB REQUIRED)
+find_package(libsecp256k1 CONFIG REQUIRED)
+find_package(Protobuf CONFIG REQUIRED)
+
+include(cmake/functions.cmake)
+include(cmake/install.cmake)
 
 # Set global include directory
 include_directories(include)
