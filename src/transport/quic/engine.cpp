@@ -203,7 +203,7 @@ namespace libp2p::transport::lsquic {
               if (ec) {
                 return;
               }
-              lsquic_engine_send_unsent_packets(self->engine_);
+                lsquic_engine_send_unsent_packets(self->engine_);
             };
             self->socket_.async_wait(boost::asio::socket_base::wait_write,
                                      std::move(cb));
