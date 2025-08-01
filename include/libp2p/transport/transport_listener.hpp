@@ -140,7 +140,7 @@ namespace libp2p::transport {
      * Get the io_context of this listener
      * @return reference to the io_context
      */
-    virtual boost::asio::io_context &getContext() const = 0;
+    // virtual boost::asio::io_context &getContext() const = 0;
 
     /**
      * Asynchronously accept new connections as an async generator

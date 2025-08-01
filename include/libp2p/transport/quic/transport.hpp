@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <boost/asio/awaitable.hpp>
 #include <boost/asio/ip/udp.hpp>
 #include <libp2p/muxer/muxed_connection_config.hpp>
 #include <libp2p/transport/transport_adaptor.hpp>
@@ -48,11 +49,10 @@ namespace libp2p::transport {
     peer::ProtocolName getProtocolId() const override;
 
     // TransportAdaptor
-    void dial(const PeerId &peer,
-              Multiaddress address,
-              TransportAdaptor::HandlerFunc cb) override;
-    std::shared_ptr<TransportListener> createListener(
-        TransportListener::HandlerFunc cb) override;
+    boost::asio::awaitable<
+        outcome::result<std::shared_ptr<connection::CapableConnection>>>
+    dial(const PeerId &peer, Multiaddress address) override;
+    std::shared_ptr<TransportListener> createListener() override;
     bool canDial(const Multiaddress &ma) const override;
 
    private:

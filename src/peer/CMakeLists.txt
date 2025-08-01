@@ -31,3 +31,10 @@ target_link_libraries(p2p_peer_address
     p2p_multibase_codec
     p2p_peer_id
     )
+
+add_library(p2p_identity_manager
+    identity_manager.cpp
+)
+target_link_libraries(p2p_identity_manager
+    p2p_peer_id
+)

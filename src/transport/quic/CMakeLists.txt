@@ -9,6 +9,7 @@ add_library(p2p_quic
     engine.cpp
     listener.cpp
     stream.cpp
+    transport.cpp
     )
 target_link_libraries(p2p_quic
     lsquic::lsquic
