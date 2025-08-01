@@ -4,13 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <libp2p/transport/quic/engine.hpp>
+
 #include <boost/asio/ssl/context.hpp>
 #include <libp2p/common/asio_buffer.hpp>
 #include <libp2p/muxer/muxed_connection_config.hpp>
 #include <libp2p/security/tls/tls_details.hpp>
 #include <libp2p/security/tls/tls_errors.hpp>
 #include <libp2p/transport/quic/connection.hpp>
-#include <libp2p/transport/quic/engine.hpp>
 #include <libp2p/transport/quic/error.hpp>
 #include <libp2p/transport/quic/init.hpp>
 #include <libp2p/transport/quic/stream.hpp>
@@ -237,13 +238,21 @@ namespace libp2p::transport::lsquic {
     readLoop();
   }
 
-  void Engine::connect(const boost::asio::ip::udp::endpoint &remote,
-                       const PeerId &peer,
-                       OnConnect cb) {
+  boost::asio::awaitable<outcome::result<std::shared_ptr<QuicConnection>>>
+  Engine::connect(const boost::asio::ip::udp::endpoint &remote,
+                  const PeerId &peer) {
     if (connecting_) {
       throw std::logic_error{"Engine::connect invalid state"};
     }
-    connecting_ = Connecting{remote, peer, std::move(cb)};
+    std::optional<outcome::result<std::shared_ptr<QuicConnection>>> result;
+    bool done = false;
+    connecting_ =
+        Connecting{remote,
+                   peer,
+                   [&](outcome::result<std::shared_ptr<QuicConnection>> res) {
+                     result = std::move(res);
+                     done = true;
+                   }};
     start();
     lsquic_engine_connect(engine_,
                           N_LSQVER,
@@ -259,8 +268,14 @@ namespace libp2p::transport::lsquic {
                           0);
     if (auto op = qtils::optionTake(connecting_)) {
       op->cb(QuicError::CANT_CREATE_CONNECTION);
+      co_return QuicError::CANT_CREATE_CONNECTION;
     }
     process();
+    // Await until the callback sets 'done' to true
+    while (!done) {
+      co_await boost::asio::this_coro::executor;
+    }
+    co_return *result;
   }
 
   outcome::result<std::shared_ptr<connection::QuicStream>> Engine::newStream(
