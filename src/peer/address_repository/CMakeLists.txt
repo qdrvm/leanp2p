@@ -1,0 +1,16 @@
+#
+# Copyright Quadrivium LLC
+# All Rights Reserved
+# SPDX-License-Identifier: Apache-2.0
+#
+
+add_library(p2p_inmem_address_repository
+    inmem_address_repository.cpp
+    )
+target_link_libraries(p2p_inmem_address_repository
+    p2p_address_repository
+    p2p_multihash
+    p2p_multiaddress
+    p2p_peer_errors
+    p2p_peer_id
+    )

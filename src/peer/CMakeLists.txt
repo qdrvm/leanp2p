@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+add_subdirectory(address_repository)
+
 add_library(p2p_peer_errors
     errors.cpp
     )
