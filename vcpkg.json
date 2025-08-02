@@ -7,6 +7,7 @@
     "boost-di",
     "boost-filesystem",
     "boost-program-options",
+    "boost-signals2",
     "fmt",
     "protobuf",
     "liblsquic",

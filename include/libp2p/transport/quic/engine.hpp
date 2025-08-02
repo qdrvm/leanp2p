@@ -45,7 +45,7 @@ namespace libp2p::transport {
 }  // namespace libp2p::transport
 
 namespace libp2p::transport::lsquic {
-  struct Engine;
+  class Engine;
   struct ConnCtx;
   struct StreamCtx;
 
@@ -115,7 +115,8 @@ namespace libp2p::transport::lsquic {
     connect(const boost::asio::ip::udp::endpoint &remote, const PeerId &peer);
     outcome::result<std::shared_ptr<connection::QuicStream>> newStream(
         ConnCtx *conn_ctx);
-    AsyncGenerator<outcome::result<std::shared_ptr<QuicConnection>>>
+    [[noreturn]] AsyncGenerator<
+        outcome::result<std::shared_ptr<QuicConnection>>>
     asyncAccept();
     void process();
 
