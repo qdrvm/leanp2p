@@ -51,47 +51,18 @@ namespace libp2p::connection {
     ~Stream() override = default;
 
     /**
-     * Check, if this stream is closed from this side of the connection and
-     * thus cannot be read from
-     * @return true, if stream cannot be read from, false otherwise
-     */
-    virtual bool isClosedForRead() const = 0;
-
-    /**
-     * Check, if this stream is closed from the other side of the connection and
-     * thus cannot be written to
-     * @return true, if stream cannot be written to, false otherwise
-     */
-    virtual bool isClosedForWrite() const = 0;
-
-    /**
-     * Check, if this stream is closed bor both writes and reads
-     * @return true, if stream is closed entirely, false otherwise
-     */
-    virtual bool isClosed() const = 0;
-
-    /**
      * Close a stream, indicating we are not going to write to it anymore; the
      * other side, however, can write to it, if it was not closed from there
      * before
      * @param cb to be called, when the stream is closed, or error happens
      */
-    virtual void close(VoidResultHandlerFunc cb) = 0;
+    virtual outcome::result<void> close() = 0;
 
     /**
      * @brief Close this stream entirely; this normally means an error happened,
      * so it should not be used just to close the stream
      */
     virtual void reset() = 0;
-
-    /**
-     * Set a new receive window size of this stream - how much unread bytes can
-     * we have on our side of the stream
-     * @param new_size for the window
-     * @param cb to be called, when the operation succeeds of fails
-     */
-    virtual void adjustWindowSize(uint32_t new_size,
-                                  VoidResultHandlerFunc cb) = 0;
 
     /**
      * Is that stream opened over a connection, which was an initiator?

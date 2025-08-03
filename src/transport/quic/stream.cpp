@@ -19,10 +19,9 @@ namespace libp2p::connection {
   QuicStream::QuicStream(std::shared_ptr<transport::QuicConnection> conn,
                          StreamCtx *stream_ctx,
                          bool initiator)
-    : conn_{std::move(conn)},
-      stream_ctx_{stream_ctx},
-      initiator_{initiator} {
-  }
+      : conn_{std::move(conn)},
+        stream_ctx_{stream_ctx},
+        initiator_{initiator} {}
 
   QuicStream::~QuicStream() {
     reset();
@@ -37,8 +36,7 @@ namespace libp2p::connection {
   }
 
   boost::asio::awaitable<outcome::result<size_t>> QuicStream::read(
-      BytesOut out,
-      size_t bytes) {
+      BytesOut out, size_t bytes) {
     ambigousSize(out, bytes);
     if (not stream_ctx_) {
       co_return QuicError::STREAM_CLOSED;
@@ -50,11 +48,11 @@ namespace libp2p::connection {
     if (n == -1 && errno == EWOULDBLOCK) {
       bool done = false;
       outcome::result<size_t> r = QuicError::STREAM_CLOSED;
-      stream_ctx_->reading.emplace(transport::lsquic::StreamCtx::Reading{
-          out, [&](auto res) {
-            r = res;
-            done = true;
-          }});
+      stream_ctx_->reading.emplace(
+          transport::lsquic::StreamCtx::Reading{out, [&](auto res) {
+                                                  r = res;
+                                                  done = true;
+                                                }});
       lsquic_stream_wantread(stream_ctx_->ls_stream, 1);
       while (!done) {
         co_await boost::asio::post(boost::asio::use_awaitable);
@@ -68,8 +66,7 @@ namespace libp2p::connection {
   }
 
   boost::asio::awaitable<outcome::result<size_t>> QuicStream::readSome(
-      BytesOut out,
-      size_t bytes) {
+      BytesOut out, size_t bytes) {
     ambigousSize(out, bytes);
     if (not stream_ctx_) {
       co_return QuicError::STREAM_CLOSED;
@@ -81,11 +78,11 @@ namespace libp2p::connection {
     if (n == -1 && errno == EWOULDBLOCK) {
       bool done = false;
       outcome::result<size_t> r = QuicError::STREAM_CLOSED;
-      stream_ctx_->reading.emplace(transport::lsquic::StreamCtx::Reading{
-          out, [&](auto res) {
-            r = res;
-            done = true;
-          }});
+      stream_ctx_->reading.emplace(
+          transport::lsquic::StreamCtx::Reading{out, [&](auto res) {
+                                                  r = res;
+                                                  done = true;
+                                                }});
       lsquic_stream_wantread(stream_ctx_->ls_stream, 1);
       while (!done) {
         co_await boost::asio::post(boost::asio::use_awaitable);
@@ -98,9 +95,8 @@ namespace libp2p::connection {
     co_return QuicError::STREAM_CLOSED;
   }
 
-  boost::asio::awaitable<std::error_code> QuicStream::writeSome(
-      BytesIn in,
-      size_t bytes) {
+  boost::asio::awaitable<std::error_code> QuicStream::writeSome(BytesIn in,
+                                                                size_t bytes) {
     ambigousSize(in, bytes);
     if (not stream_ctx_) {
       co_return QuicError::STREAM_CLOSED;
@@ -113,4 +109,40 @@ namespace libp2p::connection {
     stream_ctx_->engine->process();
     co_return QuicError::STREAM_CLOSED;
   }
-}
+
+  outcome::result<void> QuicStream::close() {
+    if (not stream_ctx_) {
+      return outcome::success();
+    }
+    lsquic_stream_shutdown(stream_ctx_->ls_stream, 1);
+    return outcome::success();
+  }
+
+  void QuicStream::reset() {
+    if (not stream_ctx_) {
+      return;
+    }
+    lsquic_stream_close(stream_ctx_->ls_stream);
+  }
+
+  outcome::result<bool> QuicStream::isInitiator() const {
+    return initiator_;
+  }
+
+  outcome::result<PeerId> QuicStream::remotePeerId() const {
+    return conn_->remotePeer();
+  }
+
+  outcome::result<Multiaddress> QuicStream::localMultiaddr() const {
+    return conn_->localMultiaddr();
+  }
+
+  outcome::result<Multiaddress> QuicStream::remoteMultiaddr() const {
+    return conn_->remoteMultiaddr();
+  }
+
+  void QuicStream::onClose() {
+    stream_ctx_ = nullptr;
+  }
+
+}  // namespace libp2p::connection

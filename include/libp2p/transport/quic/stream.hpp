@@ -38,13 +38,8 @@ namespace libp2p::connection {
     boost::asio::awaitable<std::error_code> writeSome(BytesIn in,
                                                       size_t bytes) override;
 
-    // Stream
-    bool isClosedForRead() const override;
-    bool isClosedForWrite() const override;
-    bool isClosed() const override;
-    void close(VoidResultHandlerFunc cb) override;
+    outcome::result<void> close() override;
     void reset() override;
-    void adjustWindowSize(uint32_t new_size, VoidResultHandlerFunc cb) override;
     outcome::result<bool> isInitiator() const override;
     outcome::result<PeerId> remotePeerId() const override;
     outcome::result<Multiaddress> localMultiaddr() const override;
