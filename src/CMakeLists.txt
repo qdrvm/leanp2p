@@ -2,6 +2,7 @@
 
 # Add subdirectories to collect source files
 add_subdirectory(crypto)
+add_subdirectory(host)
 add_subdirectory(log)
 add_subdirectory(multi)
 add_subdirectory(network)

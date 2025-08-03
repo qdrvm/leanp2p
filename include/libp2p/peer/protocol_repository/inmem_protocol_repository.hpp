@@ -1,0 +1,53 @@
+/**
+ * Copyright Quadrivium LLC
+ * All Rights Reserved
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#pragma once
+
+#include <set>
+#include <unordered_map>
+
+#include <libp2p/peer/protocol_repository.hpp>
+
+namespace libp2p::peer {
+
+  /**
+   * @brief In-memory implementation of Protocol repository. For each peer
+   * stores ordered set of protocols.
+   */
+  class InmemProtocolRepository : public ProtocolRepository {
+   public:
+    ~InmemProtocolRepository() override = default;
+
+    outcome::result<void> addProtocols(
+        const PeerId &p, std::span<const ProtocolName> ms) override;
+
+    outcome::result<void> removeProtocols(
+        const PeerId &p, std::span<const ProtocolName> ms) override;
+
+    outcome::result<std::vector<ProtocolName>> getProtocols(
+        const PeerId &p) const override;
+
+    outcome::result<std::vector<ProtocolName>> supportsProtocols(
+        const PeerId &p,
+        const std::set<ProtocolName> &protocols) const override;
+
+    void clear(const PeerId &p) override;
+
+    void collectGarbage() override;
+
+    std::unordered_set<PeerId> getPeers() const override;
+
+   private:
+    using set = std::set<ProtocolName>;
+    using set_ptr = std::shared_ptr<set>;
+
+    outcome::result<set_ptr> getProtocolSet(const PeerId &p) const;
+    set_ptr getOrAllocateProtocolSet(const PeerId &p);
+
+    std::unordered_map<PeerId, set_ptr> db_;
+  };
+
+}  // namespace libp2p::peer

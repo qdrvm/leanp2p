@@ -5,6 +5,8 @@
 #
 
 add_subdirectory(address_repository)
+add_subdirectory(key_repository)
+add_subdirectory(protocol_repository)
 
 add_library(p2p_peer_errors
     errors.cpp
@@ -38,5 +40,13 @@ add_library(p2p_identity_manager
     identity_manager.cpp
 )
 target_link_libraries(p2p_identity_manager
+    p2p_peer_id
+)
+
+add_library(p2p_peer_repository
+    peer_repository.cpp
+)
+target_link_libraries(p2p_peer_repository
+    p2p_address_repository
     p2p_peer_id
 )

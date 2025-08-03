@@ -59,9 +59,10 @@ namespace libp2p::network {
     void onConnection(
         outcome::result<std::shared_ptr<connection::CapableConnection>> rconn);
 
-   private:
     outcome::result<std::shared_ptr<protocol::BaseProtocol>> getProtocol(
         const peer::ProtocolName &name) const;
+
+   private:
 
     std::shared_ptr<boost::asio::io_context> io_context_;
     bool started = false;
