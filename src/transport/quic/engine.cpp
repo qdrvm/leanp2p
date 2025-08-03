@@ -135,7 +135,7 @@ namespace libp2p::transport::lsquic {
         if (conn_ctx->new_stream) {
           *conn_ctx->new_stream = stream;
         } else {
-          conn->onStream()(stream);
+          conn->onStream(stream);
         }
       } else {
         lsquic_stream_close(stream);
@@ -203,7 +203,7 @@ namespace libp2p::transport::lsquic {
               if (ec) {
                 return;
               }
-                lsquic_engine_send_unsent_packets(self->engine_);
+              lsquic_engine_send_unsent_packets(self->engine_);
             };
             self->socket_.async_wait(boost::asio::socket_base::wait_write,
                                      std::move(cb));
@@ -295,7 +295,7 @@ namespace libp2p::transport::lsquic {
     return stream;
   }
 
-  AsyncGenerator<outcome::result<std::shared_ptr<QuicConnection>>>
+  connection::AsyncGenerator<outcome::result<std::shared_ptr<QuicConnection>>>
   Engine::asyncAccept() {
     while (true) {
       if (pending_conns_.empty()) {

@@ -58,7 +58,7 @@ namespace libp2p::transport {
     return server_->local();
   }
 
-  AsyncGenerator<
+  connection::AsyncGenerator<
       outcome::result<std::shared_ptr<connection::CapableConnection>>>
   QuicListener::asyncAccept() {
     if (not server_) {

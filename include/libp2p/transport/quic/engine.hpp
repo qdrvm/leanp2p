@@ -115,7 +115,7 @@ namespace libp2p::transport::lsquic {
     connect(const boost::asio::ip::udp::endpoint &remote, const PeerId &peer);
     outcome::result<std::shared_ptr<connection::QuicStream>> newStream(
         ConnCtx *conn_ctx);
-    [[noreturn]] AsyncGenerator<
+    [[noreturn]] connection::AsyncGenerator<
         outcome::result<std::shared_ptr<QuicConnection>>>
     asyncAccept();
     void process();

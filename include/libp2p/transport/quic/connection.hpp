@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <deque>
 #include <libp2p/connection/capable_connection.hpp>
 
 namespace boost::asio {
@@ -63,15 +64,14 @@ namespace libp2p::transport {
     void newStream(StreamHandlerFunc cb) override;
     boost::asio::awaitable<outcome::result<std::shared_ptr<connection::Stream>>>
     newStreamCoroutine() override;
-    outcome::result<std::shared_ptr<libp2p::connection::Stream>> newStream()
-        override;
-    void onStream(NewStreamHandlerFunc cb) override;
+    outcome::result<std::shared_ptr<connection::Stream>> newStream() override;
+    [[noreturn]] connection::AsyncGenerator<
+        outcome::result<std::shared_ptr<connection::Stream>>>
+    acceptStream() override;
 
     void onClose();
 
-    auto &onStream() const {
-      return on_stream_;
-    }
+    void onStream(std::shared_ptr<connection::Stream>);
 
    private:
     std::shared_ptr<boost::asio::io_context> io_context_;
@@ -80,6 +80,8 @@ namespace libp2p::transport {
     Multiaddress local_, remote_;
     PeerId local_peer_, peer_;
     crypto::PublicKey key_;
-    NewStreamHandlerFunc on_stream_;
+    std::deque<outcome::result<std::shared_ptr<connection::Stream>>>
+        pending_streams_;
+    std::optional<std::function<void()>> resume_accept_;
   };
 }  // namespace libp2p::transport
