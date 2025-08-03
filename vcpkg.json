@@ -12,6 +12,7 @@
     "protobuf",
     "liblsquic",
     "libsecp256k1",
+    "tsl-hat-trie",
     "soralog",
     "qtils",
     "zlib"

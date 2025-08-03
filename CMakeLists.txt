@@ -13,6 +13,7 @@ find_package(lsquic CONFIG REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(libsecp256k1 CONFIG REQUIRED)
 find_package(Protobuf CONFIG REQUIRED)
+find_package(tsl_hat_trie CONFIG REQUIRED)
 
 include(cmake/functions.cmake)
 include(cmake/install.cmake)
