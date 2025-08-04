@@ -35,8 +35,8 @@ namespace libp2p::connection {
                                                          size_t bytes) override;
     boost::asio::awaitable<outcome::result<size_t>> readSome(
         BytesOut out, size_t bytes) override;
-    boost::asio::awaitable<std::error_code> writeSome(BytesIn in,
-                                                      size_t bytes) override;
+    boost::asio::awaitable<outcome::result<size_t>> writeSome(
+        BytesIn in, size_t bytes) override;
 
     outcome::result<void> close() override;
     void reset() override;

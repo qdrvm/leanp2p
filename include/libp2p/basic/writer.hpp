@@ -15,13 +15,10 @@
 namespace libp2p::basic {
 
   struct Writer {
-    using WriteCallback = void(outcome::result<size_t> /*written bytes*/);
-    using WriteCallbackFunc = std::function<WriteCallback>;
-
     virtual ~Writer() = default;
 
-    virtual boost::asio::awaitable<std::error_code> writeSome(BytesIn in,
-                                                              size_t bytes) = 0;
+    virtual boost::asio::awaitable<outcome::result<size_t>> writeSome(
+        BytesIn in, size_t bytes) = 0;
   };
 
 }  // namespace libp2p::basic

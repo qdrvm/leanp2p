@@ -45,10 +45,9 @@ namespace libp2p::transport {
         "QuicConnection::readSome (coroutine) must not be called"};
   }
 
-  boost::asio::awaitable<std::error_code> QuicConnection::writeSome(BytesIn,
-                                                                    size_t) {
-    throw std::logic_error{
-        "QuicConnection::writeSome (coroutine) must not be called"};
+  boost::asio::awaitable<outcome::result<size_t>> QuicConnection::writeSome(
+      BytesIn, size_t) {
+    throw std::logic_error{"QuicConnection::writeSome must not be called"};
   }
 
   bool QuicConnection::isClosed() const {

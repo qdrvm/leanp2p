@@ -95,19 +95,19 @@ namespace libp2p::connection {
     co_return QuicError::STREAM_CLOSED;
   }
 
-  boost::asio::awaitable<std::error_code> QuicStream::writeSome(BytesIn in,
-                                                                size_t bytes) {
+  boost::asio::awaitable<outcome::result<size_t>> QuicStream::writeSome(
+      BytesIn in, size_t bytes) {
     ambigousSize(in, bytes);
+    outcome::result<size_t> r = QuicError::STREAM_CLOSED;
     if (not stream_ctx_) {
-      co_return QuicError::STREAM_CLOSED;
+      co_return r;
     }
     auto n = lsquic_stream_write(stream_ctx_->ls_stream, in.data(), in.size());
     if (n > 0 && lsquic_stream_flush(stream_ctx_->ls_stream) == 0) {
-      stream_ctx_->engine->process();
-      co_return std::error_code{};
+      r = n;
     }
     stream_ctx_->engine->process();
-    co_return QuicError::STREAM_CLOSED;
+    co_return r;
   }
 
   outcome::result<void> QuicStream::close() {

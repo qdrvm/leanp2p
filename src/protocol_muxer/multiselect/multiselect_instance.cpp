@@ -72,10 +72,10 @@ namespace libp2p::protocol_muxer::multiselect {
       }
       auto packet = std::make_shared<MsgBuf>(msg.value());
       try {
-        auto ec =
+        auto res =
             co_await connection->writeSome(BytesIn(*packet), packet->size());
-        if (ec) {
-          co_return ec;
+        if (res.has_error()) {
+          co_return res.error();
         }
       } catch (const std::exception &e) {
         log()->error("Error writing opening protocol ID: {}", e.what());
@@ -227,10 +227,10 @@ namespace libp2p::protocol_muxer::multiselect {
     // Send the message
     auto packet = std::make_shared<MsgBuf>(msg_res.value());
     try {
-      auto ec =
+      auto res =
           co_await connection->writeSome(BytesIn(*packet), packet->size());
-      if (ec) {
-        co_return ec;
+      if (res.has_error()) {
+        co_return res.error();
       }
     } catch (const std::exception &e) {
       log()->error("Error writing protocol proposal: {}", e.what());
@@ -279,10 +279,10 @@ namespace libp2p::protocol_muxer::multiselect {
 
         auto packet = std::make_shared<MsgBuf>(accept_msg.value());
         try {
-          auto ec =
+          auto res =
               co_await connection->writeSome(BytesIn(*packet), packet->size());
-          if (ec) {
-            co_return ec;
+          if (res.has_error()) {
+            co_return res.error();
           }
           // Protocol negotiation successful
           co_return local_protocols[wait_for_reply_sent.value()];
@@ -305,10 +305,10 @@ namespace libp2p::protocol_muxer::multiselect {
     }
 
     try {
-      auto ec = co_await connection->writeSome(BytesIn(*na_response.value()),
-                                               na_response.value()->size());
-      if (ec) {
-        co_return ec;
+      auto res = co_await connection->writeSome(BytesIn(*na_response.value()),
+                                                na_response.value()->size());
+      if (res.has_error()) {
+        co_return res.error();
       }
       // NA sent successfully, continue with protocol negotiation
       co_return outcome::success();

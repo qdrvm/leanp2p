@@ -41,8 +41,8 @@ namespace libp2p::transport {
                                                          size_t bytes) override;
     boost::asio::awaitable<outcome::result<size_t>> readSome(
         BytesOut out, size_t bytes) override;
-    boost::asio::awaitable<std::error_code> writeSome(BytesIn in,
-                                                      size_t bytes) override;
+    boost::asio::awaitable<outcome::result<size_t>> writeSome(
+        BytesIn in, size_t bytes) override;
 
     // Closeable
     bool isClosed() const override;
