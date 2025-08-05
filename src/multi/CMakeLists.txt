@@ -20,7 +20,6 @@ add_library(p2p_multihash
     multihash.cpp
     )
 target_link_libraries(p2p_multihash
-    p2p_varint_prefix_reader
     Boost::boost
     )
 

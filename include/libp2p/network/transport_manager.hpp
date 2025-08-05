@@ -23,7 +23,7 @@ namespace libp2p::network {
      * Initialize a transport manager from a collection of transports
      * @param transports, which this manager is going to support
      */
-    explicit TransportManager(std::vector<TransportSPtr> transports);
+    explicit TransportManager(const std::vector<TransportSPtr>& transports);
 
     ~TransportManager() = default;
 

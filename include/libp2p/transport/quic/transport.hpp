@@ -9,6 +9,7 @@
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/ip/udp.hpp>
 #include <libp2p/muxer/muxed_connection_config.hpp>
+#include <libp2p/security/tls/ssl_context.hpp>
 #include <libp2p/transport/transport_adaptor.hpp>
 
 namespace boost::asio {
@@ -26,10 +27,6 @@ namespace libp2p::crypto::marshaller {
 namespace libp2p::peer {
   struct IdentityManager;
 }  // namespace libp2p::peer
-
-namespace libp2p::security {
-  struct SslContext;
-}  // namespace libp2p::security
 
 namespace libp2p::transport::lsquic {
   class Engine;

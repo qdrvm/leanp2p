@@ -8,7 +8,7 @@
 
 #include <boost/assert.hpp>
 
-#include <libp2p/crypto/key_marshaller/key_marshaller_impl.hpp>
+#include <libp2p/crypto/key_marshaller.hpp>
 #include <utility>
 
 namespace libp2p::host {

@@ -8,6 +8,7 @@
 
 #include <libp2p/crypto/error.hpp>
 #include <libp2p/crypto/key.hpp>
+#include <libp2p/crypto/key_validator.hpp>
 #include <libp2p/crypto/protobuf/protobuf_key.hpp>
 
 namespace libp2p::crypto::marshaller {
@@ -17,16 +18,15 @@ namespace libp2p::crypto::marshaller {
    */
   class KeyMarshaller {
    public:
-    virtual ~KeyMarshaller() = default;
-
+    explicit KeyMarshaller(
+        std::shared_ptr<validator::KeyValidator> key_validator);
     /**
      * Convert the public key into Protobuf representation
      * @param key - public key to be mashalled
      * @return bytes of Protobuf object if marshalling was successful, error
      * otherwise
      */
-    virtual outcome::result<ProtobufKey> marshal(
-        const PublicKey &key) const = 0;
+    outcome::result<ProtobufKey> marshal(const PublicKey &key) const;
 
     /**
      * Convert the private key into Protobuf representation
@@ -34,22 +34,23 @@ namespace libp2p::crypto::marshaller {
      * @return bytes of Protobuf object if marshalling was successful, error
      * otherwise
      */
-    virtual outcome::result<ProtobufKey> marshal(
-        const PrivateKey &key) const = 0;
+    outcome::result<ProtobufKey> marshal(const PrivateKey &key) const;
     /**
      * Convert Protobuf representation of public key into the object
      * @param key_bytes - bytes of the public key
      * @return public key in case of success, error otherwise
      */
-    virtual outcome::result<PublicKey> unmarshalPublicKey(
-        const ProtobufKey &key) const = 0;
+    outcome::result<PublicKey> unmarshalPublicKey(const ProtobufKey &key) const;
 
     /**
      * Convert Protobuf representation of private key into the object
      * @param key_bytes - bytes of the private key
      * @return private key in case of success, error otherwise
      */
-    virtual outcome::result<PrivateKey> unmarshalPrivateKey(
-        const ProtobufKey &key) const = 0;
+    outcome::result<PrivateKey> unmarshalPrivateKey(
+        const ProtobufKey &key) const;
+
+   private:
+    std::shared_ptr<validator::KeyValidator> key_validator_;
   };
 }  // namespace libp2p::crypto::marshaller

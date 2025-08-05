@@ -24,7 +24,8 @@ namespace libp2p::security {
   /**
    * SSL context with libp2p TLS 1.3 certificate
    */
-  struct SslContext {
+  class SslContext {
+   public:
     SslContext(const peer::IdentityManager &idmgr,
                const crypto::marshaller::KeyMarshaller &key_marshaller);
 

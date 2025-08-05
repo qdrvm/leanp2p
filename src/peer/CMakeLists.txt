@@ -47,6 +47,5 @@ add_library(p2p_peer_repository
     peer_repository.cpp
 )
 target_link_libraries(p2p_peer_repository
-    p2p_address_repository
     p2p_peer_id
 )

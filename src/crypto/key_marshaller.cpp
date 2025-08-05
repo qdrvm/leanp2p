@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <libp2p/crypto/key_marshaller/key_marshaller_impl.hpp>
+#include <libp2p/crypto/key_marshaller.hpp>
 
 #include <generated/crypto/protobuf/keys.pb.h>
 #include <libp2p/crypto/common.hpp>
@@ -55,11 +55,11 @@ namespace libp2p::crypto::marshaller {
     }
   }  // namespace
 
-  KeyMarshallerImpl::KeyMarshallerImpl(
+  KeyMarshaller::KeyMarshaller(
       std::shared_ptr<validator::KeyValidator> key_validator)
       : key_validator_{std::move(key_validator)} {}
 
-  outcome::result<ProtobufKey> KeyMarshallerImpl::marshal(
+  outcome::result<ProtobufKey> KeyMarshaller::marshal(
       const PublicKey &key) const {
     protobuf::PublicKey protobuf_key;
     OUTCOME_TRY(type, marshalKeyType(key.type));
@@ -70,7 +70,7 @@ namespace libp2p::crypto::marshaller {
     return ProtobufKey{{string.begin(), string.end()}};
   }
 
-  outcome::result<ProtobufKey> KeyMarshallerImpl::marshal(
+  outcome::result<ProtobufKey> KeyMarshaller::marshal(
       const PrivateKey &key) const {
     protobuf::PrivateKey protobuf_key;
     OUTCOME_TRY(type, marshalKeyType(key.type));
@@ -81,7 +81,7 @@ namespace libp2p::crypto::marshaller {
     return ProtobufKey{{string.begin(), string.end()}};
   }
 
-  outcome::result<PublicKey> KeyMarshallerImpl::unmarshalPublicKey(
+  outcome::result<PublicKey> KeyMarshaller::unmarshalPublicKey(
       const ProtobufKey &proto_key) const {
     protobuf::PublicKey protobuf_key;
     if (!protobuf_key.ParseFromArray(proto_key.key.data(),
@@ -98,7 +98,7 @@ namespace libp2p::crypto::marshaller {
     return key;
   }
 
-  outcome::result<PrivateKey> KeyMarshallerImpl::unmarshalPrivateKey(
+  outcome::result<PrivateKey> KeyMarshaller::unmarshalPrivateKey(
       const ProtobufKey &proto_key) const {
     protobuf::PublicKey protobuf_key;
     if (!protobuf_key.ParseFromArray(proto_key.key.data(),

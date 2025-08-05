@@ -14,6 +14,7 @@ find_package(ZLIB REQUIRED)
 find_package(libsecp256k1 CONFIG REQUIRED)
 find_package(Protobuf CONFIG REQUIRED)
 find_package(tsl_hat_trie CONFIG REQUIRED)
+find_package(Boost.DI CONFIG REQUIRED)
 
 include(cmake/functions.cmake)
 include(cmake/install.cmake)
@@ -23,3 +24,6 @@ include_directories(include)
 
 # Add subdirectories to collect source files
 add_subdirectory(src)
+
+# Examples
+add_subdirectory(example)

@@ -9,8 +9,8 @@
 #include <algorithm>
 
 namespace libp2p::network {
-  TransportManager::TransportManager(std::vector<TransportSPtr> transports)
-      : transports_{std::move(transports)} {
+  TransportManager::TransportManager(const std::vector<TransportSPtr>& transports)
+      : transports_{transports} {
     BOOST_ASSERT_MSG(!transports_.empty(), "TransportManager got 0 transports");
     BOOST_ASSERT(std::all_of(transports_.begin(),
                              transports_.end(),
