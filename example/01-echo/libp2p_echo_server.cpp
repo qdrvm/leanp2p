@@ -1,3 +1,5 @@
+#include <lsquic.h>
+
 #include <iostream>
 #include <libp2p/injector/host_injector.hpp>
 
@@ -46,6 +48,14 @@ int main(int argc, char *argv[]) {
   if (r.has_error) {
     exit(EXIT_FAILURE);
   }
+
+//   static lsquic_logger_if logg{
+//     +[](void *, const char *buf, size_t len) {
+//       return (int)fwrite(buf, sizeof(char), len, stdout);
+//     },
+// };
+//   lsquic_logger_init(&logg, nullptr, LLTS_HHMMSSMS);
+//   lsquic_set_log_level("debug");
   libp2p::log::setLoggingSystem(logging_system);
   auto log = libp2p::log::createLogger("EchoServer");
   KeyPair keypair{PublicKey{{Key::Type::Ed25519,
@@ -91,6 +101,14 @@ int main(int argc, char *argv[]) {
   log->info("Connection string: {}/p2p/{}",
             ma.getStringAddress(),
             host->getPeerInfo().id.toBase58());
+
+  // Set up a signal handler to gracefully stop the server.
+  boost::asio::signal_set signals(*io_context, SIGINT, SIGTERM);
+  signals.async_wait(
+      [&](const boost::system::error_code &, int) { io_context->stop(); });
+
+  io_context->run();
+  log->info("Server stopped");
 
   return 0;
 }
