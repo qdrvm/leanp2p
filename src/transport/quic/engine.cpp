@@ -51,8 +51,11 @@ namespace libp2p::transport::lsquic {
     settings.es_init_max_stream_data_bidi_local =
         mux_config.maximum_window_size;
     settings.es_init_max_streams_bidi = mux_config.maximum_streams;
-    settings.es_handshake_to = std::chrono::seconds(1).count() * 1000000;
-    settings.es_idle_timeout = 5;
+    settings.es_handshake_to =
+        std::chrono::microseconds{mux_config.dial_timeout}.count();
+    settings.es_idle_timeout = std::chrono::duration_cast<std::chrono::seconds>(
+                                   mux_config.no_streams_interval)
+                                   .count();
 
     static lsquic_stream_if stream_if{};
     stream_if.on_new_conn = +[](void *void_self, lsquic_conn_t *conn) {

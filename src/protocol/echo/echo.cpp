@@ -17,7 +17,7 @@ namespace libp2p::protocol {
     boost::asio::co_spawn(
         *io_context_,
         [this, stream]() mutable -> boost::asio::awaitable<void> {
-          while (stream) {
+          while (stream && !stream->isClosed()) {
             co_await doRead(stream);
             // If max_server_repeats is reached and not infinite, break
             if (!repeat_infinitely_ && config_.max_server_repeats == 0) {
@@ -44,7 +44,9 @@ namespace libp2p::protocol {
 
     // onRead
     if (!rread) {
-      log_->error("error happened during read: {}", rread.error());
+      if (!stream->isClosed()) {
+        log_->error("error happened during read: {}", rread.error());
+      }
       stop(std::move(stream));
       co_return;
     }

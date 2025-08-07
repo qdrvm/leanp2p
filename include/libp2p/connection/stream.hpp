@@ -69,6 +69,8 @@ namespace libp2p::connection {
      */
     virtual outcome::result<bool> isInitiator() const = 0;
 
+    virtual bool isClosed() const = 0;
+
     /**
      * Get a peer, which the stream is connected to
      * @return id of the peer
