@@ -7,7 +7,6 @@
 #pragma once
 
 #include <boost/di.hpp>
-// #include <libp2p/injector/network_injector.hpp>
 
 // implementations
 #include <libp2p/crypto/crypto_provider/crypto_provider_impl.hpp>
@@ -15,6 +14,7 @@
 #include <libp2p/crypto/ed25519_provider/ed25519_provider_impl.hpp>
 #include <libp2p/crypto/hmac_provider/hmac_provider_impl.hpp>
 #include <libp2p/crypto/key_marshaller.hpp>
+#include <libp2p/crypto/random_generator/boost_generator.hpp>
 #include <libp2p/crypto/rsa_provider/rsa_provider_impl.hpp>
 #include <libp2p/crypto/secp256k1_provider/secp256k1_provider_impl.hpp>
 #include <libp2p/host/basic_host.hpp>
@@ -25,7 +25,6 @@
 #include <libp2p/peer/protocol_repository/inmem_protocol_repository.hpp>
 #include <libp2p/protocol_muxer/multiselect.hpp>
 #include "libp2p/crypto/key_validator/key_validator_impl.hpp"
-#include "libp2p/crypto/random_generator/boost_generator.hpp"
 
 namespace libp2p::injector {
 
