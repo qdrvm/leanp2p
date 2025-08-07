@@ -167,7 +167,7 @@ namespace libp2p::connection {
     virtual boost::asio::awaitable<outcome::result<std::shared_ptr<Stream>>>
     newStreamCoroutine() = 0;
 
-    [[noreturn]] virtual AsyncGenerator<
+    virtual boost::asio::awaitable<
         outcome::result<std::shared_ptr<connection::Stream>>>
     acceptStream() = 0;
   };

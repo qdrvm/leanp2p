@@ -65,7 +65,7 @@ namespace libp2p::transport {
     boost::asio::awaitable<outcome::result<std::shared_ptr<connection::Stream>>>
     newStreamCoroutine() override;
     outcome::result<std::shared_ptr<connection::Stream>> newStream() override;
-    [[noreturn]] connection::AsyncGenerator<
+    boost::asio::awaitable<
         outcome::result<std::shared_ptr<connection::Stream>>>
     acceptStream() override;
 

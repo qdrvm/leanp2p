@@ -62,7 +62,7 @@ namespace libp2p::transport {
      * Asynchronously accept new connections as an async generator
      * @return AsyncGenerator that yields new CapableConnection results
      */
-    virtual connection::AsyncGenerator<
+    virtual boost::asio::awaitable<
         outcome::result<std::shared_ptr<connection::CapableConnection>>>
     asyncAccept() = 0;
   };

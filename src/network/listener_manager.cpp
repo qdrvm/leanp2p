@@ -159,9 +159,8 @@ namespace libp2p::network {
     boost::asio::co_spawn(
         *io_context_,
         [this, listener]() mutable -> boost::asio::awaitable<void> {
-          auto generator = listener->asyncAccept();
-          while (auto item = co_await generator.next()) {
-            this->onConnection(std::move(*item));
+          while (auto item = co_await listener->asyncAccept()) {
+            this->onConnection(std::move(item));
           }
         },
         boost::asio::detached);
@@ -239,13 +238,8 @@ namespace libp2p::network {
     boost::asio::co_spawn(
         *io_context_,
         [this, conn]() mutable -> boost::asio::awaitable<void> {
-          auto generator = conn->acceptStream();
-          while (auto opt_stream = co_await generator.next()) {
-            if (!opt_stream) {
-              log()->warn("should not get here");
-              continue;  // ignore
-            }
-            const auto &rstream = opt_stream.value();
+          while (not conn->isClosed()) {
+            auto rstream = co_await conn->acceptStream();
             if (!rstream) {
               log()->warn("can not accept stream, {}", rstream.error());
               continue;  // ignore

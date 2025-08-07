@@ -49,13 +49,13 @@ int main(int argc, char *argv[]) {
     exit(EXIT_FAILURE);
   }
 
-//   static lsquic_logger_if logg{
-//     +[](void *, const char *buf, size_t len) {
-//       return (int)fwrite(buf, sizeof(char), len, stdout);
-//     },
-// };
-//   lsquic_logger_init(&logg, nullptr, LLTS_HHMMSSMS);
-//   lsquic_set_log_level("debug");
+  static lsquic_logger_if logg{
+    +[](void *, const char *buf, size_t len) {
+      return (int)fwrite(buf, sizeof(char), len, stdout);
+    },
+};
+  lsquic_logger_init(&logg, nullptr, LLTS_HHMMSSMS);
+  lsquic_set_log_level("debug");
   libp2p::log::setLoggingSystem(logging_system);
   auto log = libp2p::log::createLogger("EchoServer");
   KeyPair keypair{PublicKey{{Key::Type::Ed25519,

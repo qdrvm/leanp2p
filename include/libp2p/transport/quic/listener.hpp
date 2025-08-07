@@ -44,7 +44,7 @@ namespace libp2p::transport {
     bool canListen(const Multiaddress &ma) const override;
     outcome::result<Multiaddress> getListenMultiaddr() const override;
 
-    connection::AsyncGenerator<
+    boost::asio::awaitable<
         outcome::result<std::shared_ptr<connection::CapableConnection>>>
     asyncAccept() override;
 

@@ -58,26 +58,13 @@ namespace libp2p::transport {
     return server_->local();
   }
 
-  connection::AsyncGenerator<
+  boost::asio::awaitable<
       outcome::result<std::shared_ptr<connection::CapableConnection>>>
   QuicListener::asyncAccept() {
     if (not server_) {
-      co_yield QuicError::CANT_CREATE_CONNECTION;
-      co_return;
+      co_return QuicError::CANT_CREATE_CONNECTION;
     }
-    while (true) {
-      auto res = co_await server_->asyncAccept();
-      if (not res) {
-        co_yield res.error();
-        co_return;
-      }
-      auto &conn = res.value();
-      if (not conn) {
-        co_yield QuicError::CANT_CREATE_CONNECTION;
-        co_return;
-      }
-      co_yield std::move(conn);
-    }
+    co_return co_await server_->asyncAccept();
   }
 
   bool QuicListener::isClosed() const {

@@ -115,8 +115,7 @@ namespace libp2p::transport::lsquic {
     connect(const boost::asio::ip::udp::endpoint &remote, const PeerId &peer);
     outcome::result<std::shared_ptr<connection::QuicStream>> newStream(
         ConnCtx *conn_ctx);
-    connection::AsyncGenerator<
-        outcome::result<std::shared_ptr<QuicConnection>>>
+    boost::asio::awaitable<outcome::result<std::shared_ptr<QuicConnection>>>
     asyncAccept();
     void process();
 
@@ -142,6 +141,6 @@ namespace libp2p::transport::lsquic {
     };
     Reading reading_;
     std::deque<outcome::result<std::shared_ptr<QuicConnection>>> pending_conns_;
-    std::optional<std::function<void()>> resume_accept_;
+    std::function<void()> resume_accept_;
   };
 }  // namespace libp2p::transport::lsquic

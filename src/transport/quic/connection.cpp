@@ -105,27 +105,27 @@ namespace libp2p::transport {
     return stream;
   }
 
-  connection::AsyncGenerator<
-      outcome::result<std::shared_ptr<connection::Stream>>>
+  boost::asio::awaitable<outcome::result<std::shared_ptr<connection::Stream>>>
   QuicConnection::acceptStream() {
-    while (true) {
-      if (pending_streams_.empty()) {
-        struct awaiter {
-          QuicConnection *self;
-          bool await_ready() noexcept {
-            return !self->pending_streams_.empty();
-          }
-          void await_suspend(std::coroutine_handle<> h) noexcept {
-            self->resume_accept_ = [h] { h.resume(); };
-          }
-          void await_resume() noexcept {}
-        };
-        co_await awaiter{this};
+    if (pending_streams_.empty()) {
+      boost::asio::steady_timer timer(io_context_->get_executor());
+      timer.expires_at(boost::asio::steady_timer::time_point::max());
+
+      // Store the timer in a way that onConnection can cancel it
+      resume_accept_ = [&timer]() { timer.cancel(); };
+
+      try {
+        co_await timer.async_wait(boost::asio::deferred);
+      } catch (const boost::system::system_error &) {
+        // Timer was cancelled, continue
+        if (conn_ctx_->ls_conn == nullptr) {
+          co_return QuicError::CONN_CLOSED;
+        }
       }
-      auto stream = std::move(pending_streams_.front());
-      pending_streams_.pop_front();
-      co_yield stream;
     }
+    auto stream = std::move(pending_streams_.front());
+    pending_streams_.pop_front();
+    co_return stream;
   }
 
   void QuicConnection::onStream(std::shared_ptr<connection::Stream> stream) {
