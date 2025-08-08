@@ -128,5 +128,6 @@ namespace libp2p::transport {
 
   void QuicConnection::onClose() {
     conn_ctx_ = nullptr;
+    stream_signal_.try_send(QuicError::CONN_CLOSED, std::nullopt);
   }
 }  // namespace libp2p::transport

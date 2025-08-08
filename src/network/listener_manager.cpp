@@ -237,10 +237,11 @@ namespace libp2p::network {
 
     boost::asio::co_spawn(
         *io_context_,
-        [this, conn]() mutable -> boost::asio::awaitable<void> {
+        [this, id, conn]() mutable -> boost::asio::awaitable<void> {
           while (not conn->isClosed()) {
             auto rstream = co_await conn->acceptStream();
             if (!rstream) {
+              // connection was closed or had some error
               log()->warn("can not accept stream, {}", rstream.error());
               continue;  // ignore
             }
@@ -278,6 +279,8 @@ namespace libp2p::network {
               stream->reset();
             }
           }
+          // connection was closed, notify connection manager
+          this->cmgr_->onConnectionClosed(id, conn);
         },
         boost::asio::detached);
 

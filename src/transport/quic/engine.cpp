@@ -372,7 +372,6 @@ namespace libp2p::transport::lsquic {
 
   void Engine::onConnection(
       outcome::result<std::shared_ptr<QuicConnection>> conn) {
-    // pending_conns_.push_back(std::move(conn));
     // Signal waiting asyncAccept that a new connection is available
     std::optional<std::shared_ptr<QuicConnection>> opt_conn;
     boost::system::error_code ec{};
