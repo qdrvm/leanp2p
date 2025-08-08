@@ -8,7 +8,9 @@
 #include <boost/asio/detached.hpp>
 #include <boost/asio/io_context.hpp>
 
+#include <libp2p/basic/write.hpp>
 #include <libp2p/protocol/echo/echo.hpp>
+#include <qtils/bytestr.hpp>
 #include <utility>
 
 namespace libp2p::protocol {
@@ -71,8 +73,7 @@ namespace libp2p::protocol {
         buf.begin(),
         // NOLINTNEXTLINE(cppcoreguidelines-narrowing-conversions)
         buf.begin() + size);
-    BytesIn span = write_buf;
-    auto rwrite = co_await stream->writeSome(span, span.size());
+    auto rwrite = co_await write(stream, write_buf);
 
     // onWrite
     if (rwrite.has_error()) {
@@ -80,14 +81,10 @@ namespace libp2p::protocol {
       stop(std::move(stream));
       co_return;
     }
-    if (rwrite.value() < 120) {
-      log_->info(
-          "written message: {}",
-          std::string{buf.begin(),
-                      // NOLINTNEXTLINE(cppcoreguidelines-narrowing-conversions)
-                      buf.begin() + rwrite.value()});
+    if (buf.size() < 120) {
+      log_->info("written message: {}", qtils::byte2str(buf));
     } else {
-      log_->info("written {} bytes", rwrite.value());
+      log_->info("written {} bytes", buf.size());
     }
 
     if (!repeat_infinitely_) {

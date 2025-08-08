@@ -12,6 +12,7 @@
 #include <boost/asio/use_awaitable.hpp>
 
 #include <libp2p/basic/read.hpp>
+#include <libp2p/basic/write.hpp>
 #include <libp2p/log/logger.hpp>
 #include <libp2p/protocol_muxer/multiselect/serializing.hpp>
 #include <libp2p/protocol_muxer/protocol_muxer.hpp>
@@ -71,16 +72,7 @@ namespace libp2p::protocol_muxer::multiselect {
         co_return msg.error();
       }
       auto packet = std::make_shared<MsgBuf>(msg.value());
-      try {
-        auto res =
-            co_await connection->writeSome(BytesIn(*packet), packet->size());
-        if (res.has_error()) {
-          co_return res.error();
-        }
-      } catch (const std::exception &e) {
-        log()->error("Error writing opening protocol ID: {}", e.what());
-        co_return std::make_error_code(std::errc::io_error);
-      }
+      BOOST_OUTCOME_CO_TRY(co_await write(connection, *packet));
     }
 
     // Cache for NA response - local to this coroutine
@@ -214,16 +206,7 @@ namespace libp2p::protocol_muxer::multiselect {
 
     // Send the message
     auto packet = std::make_shared<MsgBuf>(msg_res.value());
-    try {
-      auto res =
-          co_await connection->writeSome(BytesIn(*packet), packet->size());
-      if (res.has_error()) {
-        co_return res.error();
-      }
-    } catch (const std::exception &e) {
-      log()->error("Error writing protocol proposal: {}", e.what());
-      co_return std::make_error_code(std::errc::io_error);
-    }
+    BOOST_OUTCOME_CO_TRY(co_await write(connection, *packet));
 
     co_return outcome::success();
   }
@@ -266,18 +249,9 @@ namespace libp2p::protocol_muxer::multiselect {
         }
 
         auto packet = std::make_shared<MsgBuf>(accept_msg.value());
-        try {
-          auto res =
-              co_await connection->writeSome(BytesIn(*packet), packet->size());
-          if (res.has_error()) {
-            co_return res.error();
-          }
-          // Protocol negotiation successful
-          co_return local_protocols[wait_for_reply_sent.value()];
-        } catch (const std::exception &e) {
-          log()->error("Error writing protocol acceptance: {}", e.what());
-          co_return std::make_error_code(std::errc::io_error);
-        }
+        BOOST_OUTCOME_CO_TRY(co_await write(connection, *packet));
+        // Protocol negotiation successful
+        co_return local_protocols[wait_for_reply_sent.value()];
       }
       ++idx;
     }
@@ -292,18 +266,9 @@ namespace libp2p::protocol_muxer::multiselect {
       na_response = std::make_shared<MsgBuf>(na_msg.value());
     }
 
-    try {
-      auto res = co_await connection->writeSome(BytesIn(*na_response.value()),
-                                                na_response.value()->size());
-      if (res.has_error()) {
-        co_return res.error();
-      }
-      // NA sent successfully, continue with protocol negotiation
-      co_return outcome::success();
-    } catch (const std::exception &e) {
-      log()->error("Error sending NA response: {}", e.what());
-      co_return std::make_error_code(std::errc::io_error);
-    }
+    BOOST_OUTCOME_CO_TRY(co_await write(connection, *na_response.value()));
+    // NA sent successfully, continue with protocol negotiation
+    co_return outcome::success();
   }
 
 }  // namespace libp2p::protocol_muxer::multiselect
