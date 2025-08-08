@@ -9,7 +9,6 @@
 #include <cctype>
 
 #include <fmt/ranges.h>
-#include <boost/asio/use_awaitable.hpp>
 
 #include <libp2p/basic/read.hpp>
 #include <libp2p/basic/write.hpp>

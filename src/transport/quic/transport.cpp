@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <boost/asio/use_awaitable.hpp>
+#include <libp2p/coro/asio.hpp>
 #include <libp2p/peer/identity_manager.hpp>
 #include <libp2p/security/tls/ssl_context.hpp>
 #include <libp2p/transport/quic/connection.hpp>
@@ -41,8 +41,9 @@ namespace libp2p::transport {
       co_return make_error_code(boost::system::errc::protocol_not_supported);
     }
     auto port = std::to_string(info.port);
-    auto results = co_await resolver_.async_resolve(
-        host, port, boost::asio::use_awaitable);
+    BOOST_OUTCOME_CO_TRY(auto results,
+                         coroOutcome(co_await resolver_.async_resolve(
+                             host, port, useCoroOutcome)));
     if (results.empty()) {
       co_return make_error_code(boost::system::errc::host_unreachable);
     }

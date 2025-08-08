@@ -6,9 +6,9 @@
 
 #pragma once
 
-#include <boost/asio/experimental/channel.hpp>
 #include <deque>
 #include <libp2p/connection/capable_connection.hpp>
+#include <libp2p/coro/channel.hpp>
 
 namespace boost::asio {
   class io_context;
@@ -75,9 +75,6 @@ namespace libp2p::transport {
     Multiaddress local_, remote_;
     PeerId local_peer_, peer_;
     crypto::PublicKey key_;
-    boost::asio::experimental::channel<void(
-        boost::system::error_code,
-        std::optional<std::shared_ptr<connection::Stream>>)>
-        stream_signal_;
+    CoroOutcomeChannel<std::shared_ptr<connection::Stream>> stream_signal_;
   };
 }  // namespace libp2p::transport

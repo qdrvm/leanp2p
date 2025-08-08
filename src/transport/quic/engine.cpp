@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <boost/asio/use_awaitable.hpp>
 #include <libp2p/transport/quic/engine.hpp>
 
 #include <boost/asio/ssl/context.hpp>
@@ -35,7 +34,7 @@ namespace libp2p::transport::lsquic {
         timer_{*io_context_},
         socket_local_{socket_.local_endpoint()},
         local_{detail::makeQuicAddr(socket_local_).value()},
-        conn_signal_{io_context_->get_executor(), 1} {
+        conn_signal_{{io_context_->get_executor(), 1}} {
     socket_.non_blocking(true);
 
     lsquicInit();
@@ -297,16 +296,7 @@ namespace libp2p::transport::lsquic {
   }
 
   CoroOutcome<std::shared_ptr<QuicConnection>> Engine::asyncAccept() {
-    try {
-      std::optional<std::shared_ptr<QuicConnection>> opt_conn =
-          co_await conn_signal_.async_receive(boost::asio::use_awaitable);
-      if (not opt_conn.has_value()) {
-        co_return QuicError::CANT_CREATE_CONNECTION;
-      }
-      co_return opt_conn.value();
-    } catch (const boost::system::system_error &e) {
-      co_return e.code();
-    }
+    co_return co_await conn_signal_.receive();
   }
 
   void Engine::process() {
@@ -371,13 +361,6 @@ namespace libp2p::transport::lsquic {
   void Engine::onConnection(
       outcome::result<std::shared_ptr<QuicConnection>> conn) {
     // Signal waiting asyncAccept that a new connection is available
-    std::optional<std::shared_ptr<QuicConnection>> opt_conn;
-    boost::system::error_code ec{};
-    if (conn.has_value()) {
-      opt_conn = std::move(conn.value());
-    } else {
-      ec = conn.error();
-    }
-    conn_signal_.try_send(ec, opt_conn);
+    conn_signal_.send(std::move(conn));
   }
 }  // namespace libp2p::transport::lsquic

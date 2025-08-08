@@ -8,10 +8,10 @@
 
 #include <lsquic.h>
 
-#include <boost/asio/experimental/channel.hpp>
 #include <boost/asio/ip/udp.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <deque>
+#include <libp2p/coro/channel.hpp>
 #include <libp2p/coro/coro.hpp>
 #include <libp2p/multi/multiaddress.hpp>
 #include <libp2p/peer/peer_id.hpp>
@@ -141,9 +141,6 @@ namespace libp2p::transport::lsquic {
     };
     Reading reading_;
     // Channel for signaling new connections
-    boost::asio::experimental::channel<void(
-        boost::system::error_code,
-        std::optional<std::shared_ptr<QuicConnection>>)>
-        conn_signal_;
+    CoroOutcomeChannel<std::shared_ptr<QuicConnection>> conn_signal_;
   };
 }  // namespace libp2p::transport::lsquic

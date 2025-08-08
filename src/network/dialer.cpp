@@ -8,9 +8,6 @@
 
 #include <libp2p/network/dialer.hpp>
 
-#include <boost/asio/async_result.hpp>
-#include <boost/asio/this_coro.hpp>
-#include <boost/asio/use_awaitable.hpp>
 #include <libp2p/connection/stream.hpp>
 #include <libp2p/log/logger.hpp>
 

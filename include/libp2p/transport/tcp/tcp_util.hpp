@@ -40,6 +40,8 @@ namespace libp2p::transport::detail {
           case P::IP6:
             ip = boost::asio::ip::make_address_v6(v, ec);
             break;
+          default:
+            abort();
         }
         if (ec) {
           return ec;
@@ -51,15 +53,20 @@ namespace libp2p::transport::detail {
       case P::DNS6: {
         Dns dns{std::nullopt, v};
         switch (p.code) {
+          case P::DNS:
+            break;
           case P::DNS4:
             dns.v4 = true;
             break;
           case P::DNS6:
             dns.v4 = false;
             break;
+          default:
+            abort();
         }
         return dns;
       }
+      default:
     }
     return std::errc::protocol_not_supported;
   }
