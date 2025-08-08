@@ -34,22 +34,22 @@ namespace libp2p::connection {
     if (stream_ctx_->reading) {
       co_return QuicError::STREAM_READ_IN_PROGRESS;
     }
-    auto n = lsquic_stream_read(stream_ctx_->ls_stream, out.data(), out.size());
-    if (n == -1 && errno == EWOULDBLOCK) {
-      bool done = false;
-      outcome::result<size_t> r = QuicError::STREAM_CLOSED;
-      stream_ctx_->reading.emplace(
-          transport::lsquic::StreamCtx::Reading{out, [&](auto res) {
-                                                  r = res;
-                                                  done = true;
-                                                }});
-      lsquic_stream_wantread(stream_ctx_->ls_stream, 1);
-      while (!done) {
-        co_await boost::asio::post(boost::asio::use_awaitable);
+    while (true) {
+      auto n =
+          lsquic_stream_read(stream_ctx_->ls_stream, out.data(), out.size());
+      if (n == 0) {
+        break;
       }
-      co_return r;
-    }
-    if (n > 0) {
+      if (n == -1) {
+        if (errno != EWOULDBLOCK) {
+          break;
+        }
+        co_await coroHandler<void>([&](CoroHandler<void> &&handler) {
+          stream_ctx_->reading.emplace(std::move(handler));
+          lsquic_stream_wantread(stream_ctx_->ls_stream, 1);
+        });
+        continue;
+      }
       co_return n;
     }
     co_return QuicError::STREAM_CLOSED;

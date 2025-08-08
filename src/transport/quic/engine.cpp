@@ -148,8 +148,8 @@ namespace libp2p::transport::lsquic {
         +[](lsquic_stream_t *stream, lsquic_stream_ctx_t *_stream_ctx) {
           // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
           auto stream_ctx = reinterpret_cast<StreamCtx *>(_stream_ctx);
-          if (auto op = qtils::optionTake(stream_ctx->reading)) {
-            op->cb(QuicError::STREAM_CLOSED);
+          if (auto reading = qtils::optionTake(stream_ctx->reading)) {
+            reading.value()();
           }
           if (auto stream = stream_ctx->stream.lock()) {
             stream->onClose();
@@ -162,14 +162,9 @@ namespace libp2p::transport::lsquic {
           lsquic_stream_wantread(stream, 0);
           // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
           auto stream_ctx = reinterpret_cast<StreamCtx *>(_stream_ctx);
-          auto op = qtils::optionTake(stream_ctx->reading).value();
-          auto n = lsquic_stream_read(stream, op.out.data(), op.out.size());
-          outcome::result<size_t> r = QuicError::STREAM_CLOSED;
-          if (n > 0) {
-            r = n;
+          if (auto reading = qtils::optionTake(stream_ctx->reading)) {
+            reading.value()();
           }
-          post(*stream_ctx->engine->io_context_,
-               [cb{std::move(op.cb)}, r] { cb(r); });
         };
 
     lsquic_engine_api api{};

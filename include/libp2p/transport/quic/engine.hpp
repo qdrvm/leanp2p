@@ -13,6 +13,7 @@
 #include <deque>
 #include <libp2p/coro/channel.hpp>
 #include <libp2p/coro/coro.hpp>
+#include <libp2p/coro/handler.hpp>
 #include <libp2p/multi/multiaddress.hpp>
 #include <libp2p/peer/peer_id.hpp>
 #include <memory>
@@ -81,11 +82,7 @@ namespace libp2p::transport::lsquic {
     /**
      * Stream read operation arguments.
      */
-    struct Reading {
-      BytesOut out;
-      std::function<void(outcome::result<size_t>)> cb;
-    };
-    std::optional<Reading> reading{};
+    std::optional<CoroHandler<void>> reading;
   };
 
   /**
