@@ -9,6 +9,7 @@
 #include <lsquic.h>
 
 #include <boost/asio/awaitable.hpp>
+#include <boost/asio/experimental/channel.hpp>
 #include <boost/asio/ip/udp.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <deque>
@@ -140,7 +141,10 @@ namespace libp2p::transport::lsquic {
       boost::asio::ip::udp::endpoint remote;
     };
     Reading reading_;
-    std::deque<outcome::result<std::shared_ptr<QuicConnection>>> pending_conns_;
-    std::function<void()> resume_accept_;
+    // Channel for signaling new connections
+    boost::asio::experimental::channel<void(
+        boost::system::error_code,
+        std::optional<std::shared_ptr<QuicConnection>>)>
+        conn_signal_;
   };
 }  // namespace libp2p::transport::lsquic

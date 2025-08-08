@@ -34,7 +34,8 @@ namespace libp2p::transport::lsquic {
         socket_{std::move(socket)},
         timer_{*io_context_},
         socket_local_{socket_.local_endpoint()},
-        local_{detail::makeQuicAddr(socket_local_).value()} {
+        local_{detail::makeQuicAddr(socket_local_).value()},
+        conn_signal_{io_context_->get_executor(), 1} {
     socket_.non_blocking(true);
 
     lsquicInit();
@@ -298,23 +299,16 @@ namespace libp2p::transport::lsquic {
 
   boost::asio::awaitable<outcome::result<std::shared_ptr<QuicConnection>>>
   Engine::asyncAccept() {
-    if (pending_conns_.empty()) {
-      // Create a simple awaitable using boost::asio::steady_timer
-      boost::asio::steady_timer timer(io_context_->get_executor());
-      timer.expires_at(boost::asio::steady_timer::time_point::max());
-
-      // Store the timer in a way that onConnection can cancel it
-      resume_accept_ = [&timer]() { timer.cancel(); };
-
-      try {
-        co_await timer.async_wait(boost::asio::deferred);
-      } catch (const boost::system::system_error &) {
-        // Timer was cancelled, continue
+    try {
+      std::optional<std::shared_ptr<QuicConnection>> opt_conn =
+          co_await conn_signal_.async_receive(boost::asio::use_awaitable);
+      if (not opt_conn.has_value()) {
+        co_return QuicError::CANT_CREATE_CONNECTION;
       }
+      co_return opt_conn.value();
+    } catch (const boost::system::system_error &e) {
+      co_return e.code();
     }
-    auto result = std::move(pending_conns_.front());
-    pending_conns_.pop_front();
-    co_return result;
   }
 
   void Engine::process() {
@@ -378,9 +372,15 @@ namespace libp2p::transport::lsquic {
 
   void Engine::onConnection(
       outcome::result<std::shared_ptr<QuicConnection>> conn) {
-    pending_conns_.push_back(std::move(conn));
-    if (resume_accept_) {
-      resume_accept_();
+    // pending_conns_.push_back(std::move(conn));
+    // Signal waiting asyncAccept that a new connection is available
+    std::optional<std::shared_ptr<QuicConnection>> opt_conn;
+    boost::system::error_code ec{};
+    if (conn.has_value()) {
+      opt_conn = std::move(conn.value());
+    } else {
+      ec = conn.error();
     }
+    conn_signal_.try_send(ec, opt_conn);
   }
 }  // namespace libp2p::transport::lsquic

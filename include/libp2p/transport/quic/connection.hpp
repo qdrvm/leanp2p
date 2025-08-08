@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <boost/asio/experimental/channel.hpp>
 #include <deque>
 #include <libp2p/connection/capable_connection.hpp>
 
@@ -80,8 +81,9 @@ namespace libp2p::transport {
     Multiaddress local_, remote_;
     PeerId local_peer_, peer_;
     crypto::PublicKey key_;
-    std::deque<outcome::result<std::shared_ptr<connection::Stream>>>
-        pending_streams_;
-    std::optional<std::function<void()>> resume_accept_;
+    boost::asio::experimental::channel<void(
+        boost::system::error_code,
+        std::optional<std::shared_ptr<connection::Stream>>)>
+        stream_signal_;
   };
 }  // namespace libp2p::transport

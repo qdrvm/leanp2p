@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <boost/asio/use_awaitable.hpp>
 #include <libp2p/transport/quic/connection.hpp>
 #include <libp2p/transport/quic/engine.hpp>
 #include <libp2p/transport/quic/error.hpp>
@@ -27,7 +28,8 @@ namespace libp2p::transport {
         remote_{std::move(remote)},
         local_peer_{std::move(local_peer)},
         peer_{std::move(peer)},
-        key_{std::move(key)} {}
+        key_{std::move(key)},
+        stream_signal_{io_context_->get_executor(), 1} {}
 
   QuicConnection::~QuicConnection() {
     std::ignore = close();
@@ -107,32 +109,21 @@ namespace libp2p::transport {
 
   boost::asio::awaitable<outcome::result<std::shared_ptr<connection::Stream>>>
   QuicConnection::acceptStream() {
-    if (pending_streams_.empty()) {
-      boost::asio::steady_timer timer(io_context_->get_executor());
-      timer.expires_at(boost::asio::steady_timer::time_point::max());
-
-      // Store the timer in a way that onConnection can cancel it
-      resume_accept_ = [&timer]() { timer.cancel(); };
-
-      try {
-        co_await timer.async_wait(boost::asio::deferred);
-      } catch (const boost::system::system_error &) {
-        // Timer was cancelled, continue
-        if (conn_ctx_->ls_conn == nullptr) {
-          co_return QuicError::CONN_CLOSED;
-        }
+    try {
+      std::optional<std::shared_ptr<connection::Stream>> opt_conn =
+          co_await stream_signal_.async_receive(boost::asio::use_awaitable);
+      if (not opt_conn.has_value()) {
+        co_return QuicError::CANT_OPEN_STREAM;
       }
+      co_return opt_conn.value();
+    } catch (const boost::system::system_error &e) {
+      co_return e.code();
     }
-    auto stream = std::move(pending_streams_.front());
-    pending_streams_.pop_front();
-    co_return stream;
   }
 
   void QuicConnection::onStream(std::shared_ptr<connection::Stream> stream) {
-    pending_streams_.emplace_back(std::move(stream));
-    if (resume_accept_) {
-      (*qtils::optionTake(resume_accept_))();
-    }
+    std::optional<std::shared_ptr<QuicConnection>> opt_conn;
+    stream_signal_.try_send(boost::system::error_code{}, stream);
   }
 
   void QuicConnection::onClose() {
