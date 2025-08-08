@@ -157,9 +157,8 @@ namespace libp2p::host {
   //       std::move(protocols), std::move(cb), std::move(predicate));
   // }
 
-  boost::asio::awaitable<outcome::result<std::shared_ptr<connection::Stream>>>
-  BasicHost::newStream(const peer::PeerInfo &peer_info,
-                       StreamProtocols protocols) {
+  CoroOutcome<std::shared_ptr<connection::Stream>> BasicHost::newStream(
+      const peer::PeerInfo &peer_info, StreamProtocols protocols) {
     co_return co_await dialer_->newStream(peer_info, std::move(protocols));
   }
 
@@ -225,8 +224,7 @@ namespace libp2p::host {
     return *bus_;
   }
 
-  boost::asio::awaitable<
-      outcome::result<std::shared_ptr<connection::CapableConnection>>>
+  CoroOutcome<std::shared_ptr<connection::CapableConnection>>
   BasicHost::connect(const peer::PeerInfo &peer_info) {
     co_return co_await dialer_->dial(peer_info);
   }

@@ -10,7 +10,7 @@
 #include <functional>
 #include <memory>
 
-#include <boost/asio/awaitable.hpp>
+#include <libp2p/coro/coro.hpp>
 
 #include <libp2p/basic/adaptor.hpp>
 #include <libp2p/connection/capable_connection.hpp>
@@ -38,8 +38,8 @@ namespace libp2p::transport {
      * @param address of the peer
      * @return connection in case of success, error otherwise
      */
-    virtual boost::asio::awaitable<outcome::result<std::shared_ptr<connection::CapableConnection>>>
-    dial(const peer::PeerId &remoteId, multi::Multiaddress address) = 0;
+    virtual CoroOutcome<std::shared_ptr<connection::CapableConnection>> dial(
+        const peer::PeerId &remoteId, multi::Multiaddress address) = 0;
 
     /**
      * Create a listener for incoming connections of this Transport; in case

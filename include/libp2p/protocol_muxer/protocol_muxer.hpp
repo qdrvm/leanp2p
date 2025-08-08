@@ -40,7 +40,7 @@ namespace libp2p::protocol_muxer {
      * itself, this happens with fresh raw connections
      * @return awaitable with chosen protocol or error
      */
-    virtual boost::asio::awaitable<outcome::result<peer::ProtocolName>> selectOneOf(
+    virtual CoroOutcome<peer::ProtocolName> selectOneOf(
         std::span<const peer::ProtocolName> protocols,
         std::shared_ptr<basic::ReadWriter> connection,
         bool is_initiator,

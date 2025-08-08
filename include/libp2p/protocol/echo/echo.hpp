@@ -34,7 +34,7 @@ namespace libp2p::protocol {
     //     const std::shared_ptr<connection::Stream> &stream);
 
    private:
-    boost::asio::awaitable<void> doRead(std::shared_ptr<connection::Stream>);
+    Coro<void> doRead(std::shared_ptr<connection::Stream>);
     void stop(std::shared_ptr<connection::Stream> stream);
 
     std::shared_ptr<boost::asio::io_context> io_context_;

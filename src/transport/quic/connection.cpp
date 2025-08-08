@@ -35,20 +35,17 @@ namespace libp2p::transport {
     std::ignore = close();
   }
 
-  boost::asio::awaitable<outcome::result<size_t>> QuicConnection::read(BytesOut,
-                                                                       size_t) {
+  CoroOutcome<size_t> QuicConnection::read(BytesOut, size_t) {
     throw std::logic_error{
         "QuicConnection::read (coroutine) must not be called"};
   }
 
-  boost::asio::awaitable<outcome::result<size_t>> QuicConnection::readSome(
-      BytesOut, size_t) {
+  CoroOutcome<size_t> QuicConnection::readSome(BytesOut, size_t) {
     throw std::logic_error{
         "QuicConnection::readSome (coroutine) must not be called"};
   }
 
-  boost::asio::awaitable<outcome::result<size_t>> QuicConnection::writeSome(
-      BytesIn, size_t) {
+  CoroOutcome<size_t> QuicConnection::writeSome(BytesIn, size_t) {
     throw std::logic_error{"QuicConnection::writeSome must not be called"};
   }
 
@@ -95,7 +92,7 @@ namespace libp2p::transport {
     cb(newStream());
   }
 
-  boost::asio::awaitable<outcome::result<std::shared_ptr<connection::Stream>>>
+  CoroOutcome<std::shared_ptr<connection::Stream>>
   QuicConnection::newStreamCoroutine() {}
 
   outcome::result<std::shared_ptr<libp2p::connection::Stream>>
@@ -107,7 +104,7 @@ namespace libp2p::transport {
     return stream;
   }
 
-  boost::asio::awaitable<outcome::result<std::shared_ptr<connection::Stream>>>
+  CoroOutcome<std::shared_ptr<connection::Stream>>
   QuicConnection::acceptStream() {
     try {
       std::optional<std::shared_ptr<connection::Stream>> opt_conn =

@@ -58,8 +58,7 @@ namespace libp2p::transport {
     return server_->local();
   }
 
-  boost::asio::awaitable<
-      outcome::result<std::shared_ptr<connection::CapableConnection>>>
+  CoroOutcome<std::shared_ptr<connection::CapableConnection>>
   QuicListener::asyncAccept() {
     if (not server_) {
       co_return QuicError::CANT_CREATE_CONNECTION;

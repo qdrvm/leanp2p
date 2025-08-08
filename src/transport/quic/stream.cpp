@@ -5,9 +5,9 @@
  */
 
 #include <lsquic.h>
-#include <boost/asio/awaitable.hpp>
 #include <boost/asio/post.hpp>
 #include <boost/asio/use_awaitable.hpp>
+#include <libp2p/coro/coro.hpp>
 #include <libp2p/transport/quic/connection.hpp>
 #include <libp2p/transport/quic/engine.hpp>
 #include <libp2p/transport/quic/error.hpp>
@@ -35,8 +35,7 @@ namespace libp2p::connection {
     s = s.first(n);
   }
 
-  boost::asio::awaitable<outcome::result<size_t>> QuicStream::read(
-      BytesOut out, size_t bytes) {
+  CoroOutcome<size_t> QuicStream::read(BytesOut out, size_t bytes) {
     ambigousSize(out, bytes);
     if (not stream_ctx_) {
       co_return QuicError::STREAM_CLOSED;
@@ -65,8 +64,7 @@ namespace libp2p::connection {
     co_return QuicError::STREAM_CLOSED;
   }
 
-  boost::asio::awaitable<outcome::result<size_t>> QuicStream::readSome(
-      BytesOut out, size_t bytes) {
+  CoroOutcome<size_t> QuicStream::readSome(BytesOut out, size_t bytes) {
     ambigousSize(out, bytes);
     if (not stream_ctx_) {
       co_return QuicError::STREAM_CLOSED;
@@ -95,8 +93,7 @@ namespace libp2p::connection {
     co_return QuicError::STREAM_CLOSED;
   }
 
-  boost::asio::awaitable<outcome::result<size_t>> QuicStream::writeSome(
-      BytesIn in, size_t bytes) {
+  CoroOutcome<size_t> QuicStream::writeSome(BytesIn in, size_t bytes) {
     ambigousSize(in, bytes);
     outcome::result<size_t> r = QuicError::STREAM_CLOSED;
     if (not stream_ctx_) {
@@ -132,7 +129,6 @@ namespace libp2p::connection {
   bool QuicStream::isClosed() const {
     return not stream_ctx_;
   }
-
 
   outcome::result<PeerId> QuicStream::remotePeerId() const {
     return conn_->remotePeer();

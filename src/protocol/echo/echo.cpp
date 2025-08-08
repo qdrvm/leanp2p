@@ -16,7 +16,7 @@ namespace libp2p::protocol {
   void Echo::handle(std::shared_ptr<connection::Stream> stream) {
     boost::asio::co_spawn(
         *io_context_,
-        [this, stream]() mutable -> boost::asio::awaitable<void> {
+        [this, stream]() mutable -> Coro<void> {
           while (stream && !stream->isClosed()) {
             co_await doRead(stream);
             // If max_server_repeats is reached and not infinite, break
@@ -28,8 +28,7 @@ namespace libp2p::protocol {
         boost::asio::detached);
   }
 
-  boost::asio::awaitable<void> Echo::doRead(
-      std::shared_ptr<connection::Stream> stream) {
+  Coro<void> Echo::doRead(std::shared_ptr<connection::Stream> stream) {
     if (!repeat_infinitely_ && config_.max_server_repeats == 0) {
       stop(std::move(stream));
       co_return;

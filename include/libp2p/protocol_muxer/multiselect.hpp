@@ -23,7 +23,7 @@ namespace libp2p::protocol_muxer::multiselect {
     ~Multiselect() override = default;
 
     /// Implements coroutine version of ProtocolMuxer API
-    boost::asio::awaitable<outcome::result<peer::ProtocolName>> selectOneOf(
+    CoroOutcome<peer::ProtocolName> selectOneOf(
         std::span<const peer::ProtocolName> protocols,
         std::shared_ptr<basic::ReadWriter> connection,
         bool is_initiator,

@@ -240,9 +240,8 @@ namespace libp2p::transport::lsquic {
     readLoop();
   }
 
-  boost::asio::awaitable<outcome::result<std::shared_ptr<QuicConnection>>>
-  Engine::connect(const boost::asio::ip::udp::endpoint &remote,
-                  const PeerId &peer) {
+  CoroOutcome<std::shared_ptr<QuicConnection>> Engine::connect(
+      const boost::asio::ip::udp::endpoint &remote, const PeerId &peer) {
     if (connecting_) {
       throw std::logic_error{"Engine::connect invalid state"};
     }
@@ -297,8 +296,7 @@ namespace libp2p::transport::lsquic {
     return stream;
   }
 
-  boost::asio::awaitable<outcome::result<std::shared_ptr<QuicConnection>>>
-  Engine::asyncAccept() {
+  CoroOutcome<std::shared_ptr<QuicConnection>> Engine::asyncAccept() {
     try {
       std::optional<std::shared_ptr<QuicConnection>> opt_conn =
           co_await conn_signal_.async_receive(boost::asio::use_awaitable);

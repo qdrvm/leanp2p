@@ -8,11 +8,11 @@
 
 #include <lsquic.h>
 
-#include <boost/asio/awaitable.hpp>
 #include <boost/asio/experimental/channel.hpp>
 #include <boost/asio/ip/udp.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <deque>
+#include <libp2p/coro/coro.hpp>
 #include <libp2p/multi/multiaddress.hpp>
 #include <libp2p/peer/peer_id.hpp>
 #include <memory>
@@ -112,12 +112,11 @@ namespace libp2p::transport::lsquic {
       return local_;
     }
     void start();
-    boost::asio::awaitable<outcome::result<std::shared_ptr<QuicConnection>>>
-    connect(const boost::asio::ip::udp::endpoint &remote, const PeerId &peer);
+    CoroOutcome<std::shared_ptr<QuicConnection>> connect(
+        const boost::asio::ip::udp::endpoint &remote, const PeerId &peer);
     outcome::result<std::shared_ptr<connection::QuicStream>> newStream(
         ConnCtx *conn_ctx);
-    boost::asio::awaitable<outcome::result<std::shared_ptr<QuicConnection>>>
-    asyncAccept();
+    CoroOutcome<std::shared_ptr<QuicConnection>> asyncAccept();
     void process();
 
    private:

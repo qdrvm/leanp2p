@@ -27,8 +27,7 @@ namespace libp2p::protocol_muxer::multiselect {
   MultiselectInstance::MultiselectInstance(Multiselect &owner)
       : owner_(owner) {}
 
-  boost::asio::awaitable<outcome::result<peer::ProtocolName>>
-  MultiselectInstance::selectOneOf(
+  CoroOutcome<peer::ProtocolName> MultiselectInstance::selectOneOf(
       std::span<const peer::ProtocolName> protocols,
       std::shared_ptr<basic::ReadWriter> connection,
       bool is_initiator,
@@ -205,8 +204,7 @@ namespace libp2p::protocol_muxer::multiselect {
     co_return ProtocolMuxer::Error::INTERNAL_ERROR;
   }
 
-  boost::asio::awaitable<outcome::result<void>>
-  MultiselectInstance::sendProtocolProposalCoro(
+  CoroOutcome<void> MultiselectInstance::sendProtocolProposalCoro(
       std::shared_ptr<basic::ReadWriter> connection,
       bool multistream_negotiated,
       const std::string &protocol) {
@@ -240,7 +238,7 @@ namespace libp2p::protocol_muxer::multiselect {
     co_return outcome::success();
   }
 
-  boost::asio::awaitable<outcome::result<peer::ProtocolName>>
+  CoroOutcome<peer::ProtocolName>
   MultiselectInstance::processProtocolMessageCoro(
       std::shared_ptr<basic::ReadWriter> connection,
       bool is_initiator,

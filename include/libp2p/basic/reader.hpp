@@ -9,8 +9,8 @@
 #include <functional>
 #include <vector>
 
-#include <boost/asio/awaitable.hpp>
 #include <libp2p/common/types.hpp>
+#include <libp2p/coro/coro.hpp>
 #include <libp2p/outcome/outcome.hpp>
 
 namespace libp2p::basic {
@@ -25,11 +25,9 @@ namespace libp2p::basic {
      * @param cb callback
      */
 
-    virtual boost::asio::awaitable<outcome::result<size_t>> read(
-        BytesOut out, size_t bytes) = 0;
+    virtual CoroOutcome<size_t> read(BytesOut out, size_t bytes) = 0;
 
-    virtual boost::asio::awaitable<outcome::result<size_t>> readSome(
-        BytesOut out, size_t bytes) = 0;
+    virtual CoroOutcome<size_t> readSome(BytesOut out, size_t bytes) = 0;
   };
 
 }  // namespace libp2p::basic

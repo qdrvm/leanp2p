@@ -29,8 +29,7 @@ namespace libp2p::transport {
         client4_{makeClient(boost::asio::ip::udp::v4())},
         client6_{makeClient(boost::asio::ip::udp::v6())} {}
 
-  boost::asio::awaitable<
-      outcome::result<std::shared_ptr<connection::CapableConnection>>>
+  CoroOutcome<std::shared_ptr<connection::CapableConnection>>
   QuicTransport::dial(const PeerId &peer, Multiaddress address) {
     auto r = detail::asQuic(address);
     if (not r) {

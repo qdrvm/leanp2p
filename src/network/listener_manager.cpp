@@ -158,7 +158,7 @@ namespace libp2p::network {
     auto listener = tr->createListener();
     boost::asio::co_spawn(
         *io_context_,
-        [this, listener]() mutable -> boost::asio::awaitable<void> {
+        [this, listener]() mutable -> Coro<void> {
           while (auto item = co_await listener->asyncAccept()) {
             this->onConnection(std::move(item));
           }
@@ -237,7 +237,7 @@ namespace libp2p::network {
 
     boost::asio::co_spawn(
         *io_context_,
-        [this, id, conn]() mutable -> boost::asio::awaitable<void> {
+        [this, id, conn]() mutable -> Coro<void> {
           while (not conn->isClosed()) {
             auto rstream = co_await conn->acceptStream();
             if (!rstream) {

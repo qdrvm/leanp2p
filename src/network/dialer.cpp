@@ -36,9 +36,8 @@ OUTCOME_CPP_DEFINE_CATEGORY(libp2p::network, Dialer::Error, e) {
 
 namespace libp2p::network {
 
-  boost::asio::awaitable<
-      outcome::result<std::shared_ptr<connection::CapableConnection>>>
-  Dialer::dial(const PeerInfo &p) {
+  CoroOutcome<std::shared_ptr<connection::CapableConnection>> Dialer::dial(
+      const PeerInfo &p) {
     SL_TRACE(log_, "Dialing to {}", p.id.toBase58().substr(46));
     if (auto c = cmgr_->getBestConnectionForPeer(p.id); c != nullptr) {
       // we have connection to this peer
@@ -75,9 +74,8 @@ namespace libp2p::network {
     co_return co_await rotate(p.id);
   }
 
-  boost::asio::awaitable<
-      outcome::result<std::shared_ptr<connection::CapableConnection>>>
-  Dialer::rotate(const peer::PeerId &peer_id) {
+  CoroOutcome<std::shared_ptr<connection::CapableConnection>> Dialer::rotate(
+      const peer::PeerId &peer_id) {
     auto ctx_found = dialing_peers_.find(peer_id);
     if (dialing_peers_.end() == ctx_found) {
       SL_ERROR(
@@ -144,9 +142,9 @@ namespace libp2p::network {
     }
   }
 
-  boost::asio::awaitable<outcome::result<std::shared_ptr<connection::Stream>>>
-  Dialer::newStream(std::shared_ptr<connection::CapableConnection> conn,
-                    StreamProtocols protocols) {
+  CoroOutcome<std::shared_ptr<connection::Stream>> Dialer::newStream(
+      std::shared_ptr<connection::CapableConnection> conn,
+      StreamProtocols protocols) {
     auto stream_res = conn->newStream();
     if (stream_res.has_error()) {
       co_return stream_res.error();
@@ -160,8 +158,8 @@ namespace libp2p::network {
     co_return stream;
   }
 
-  boost::asio::awaitable<outcome::result<std::shared_ptr<connection::Stream>>>
-  Dialer::newStream(const peer::PeerInfo &p, StreamProtocols protocols) {
+  CoroOutcome<std::shared_ptr<connection::Stream>> Dialer::newStream(
+      const peer::PeerInfo &p, StreamProtocols protocols) {
     SL_TRACE(log_,
              "New stream to {} for {} (peer info)",
              p.id.toBase58().substr(46),

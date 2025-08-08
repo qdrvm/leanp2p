@@ -38,12 +38,9 @@ namespace libp2p::transport {
     QuicConnection(QuicConnection &&) = delete;
     void operator=(QuicConnection &&) = delete;
 
-    boost::asio::awaitable<outcome::result<size_t>> read(BytesOut out,
-                                                         size_t bytes) override;
-    boost::asio::awaitable<outcome::result<size_t>> readSome(
-        BytesOut out, size_t bytes) override;
-    boost::asio::awaitable<outcome::result<size_t>> writeSome(
-        BytesIn in, size_t bytes) override;
+    CoroOutcome<size_t> read(BytesOut out, size_t bytes) override;
+    CoroOutcome<size_t> readSome(BytesOut out, size_t bytes) override;
+    CoroOutcome<size_t> writeSome(BytesIn in, size_t bytes) override;
 
     // Closeable
     bool isClosed() const override;
@@ -63,12 +60,10 @@ namespace libp2p::transport {
     void start() override;
     void stop() override;
     void newStream(StreamHandlerFunc cb) override;
-    boost::asio::awaitable<outcome::result<std::shared_ptr<connection::Stream>>>
-    newStreamCoroutine() override;
+    CoroOutcome<std::shared_ptr<connection::Stream>> newStreamCoroutine()
+        override;
     outcome::result<std::shared_ptr<connection::Stream>> newStream() override;
-    boost::asio::awaitable<
-        outcome::result<std::shared_ptr<connection::Stream>>>
-    acceptStream() override;
+    CoroOutcome<std::shared_ptr<connection::Stream>> acceptStream() override;
 
     void onClose();
 

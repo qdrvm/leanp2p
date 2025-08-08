@@ -6,8 +6,8 @@
 
 #pragma once
 
-#include <boost/asio/awaitable.hpp>
 #include <libp2p/basic/readwriter.hpp>
+#include <libp2p/coro/coro.hpp>
 #include <libp2p/protocol_muxer/multiselect.hpp>
 
 #include "parser.hpp"
@@ -27,7 +27,7 @@ namespace libp2p::protocol_muxer::multiselect {
     explicit MultiselectInstance(Multiselect &owner);
 
     /// Coroutine version of ProtocolMuxer API
-    boost::asio::awaitable<outcome::result<peer::ProtocolName>> selectOneOf(
+    CoroOutcome<peer::ProtocolName> selectOneOf(
         std::span<const peer::ProtocolName> protocols,
         std::shared_ptr<basic::ReadWriter> connection,
         bool is_initiator,
@@ -40,19 +40,17 @@ namespace libp2p::protocol_muxer::multiselect {
     using MaybeResult = boost::optional<outcome::result<std::string>>;
 
     /// Coroutine versions of send and receive operations
-    boost::asio::awaitable<outcome::result<size_t>> sendCoro(Packet packet);
-    boost::asio::awaitable<outcome::result<size_t>> receiveCoro(
-        size_t bytes_needed);
-    boost::asio::awaitable<MaybeResult> processMessagesCoro();
+    CoroOutcome<size_t> sendCoro(Packet packet);
+    CoroOutcome<size_t> receiveCoro(size_t bytes_needed);
+    Coro<MaybeResult> processMessagesCoro();
 
     /// Coroutine helper methods for protocol negotiation
-    boost::asio::awaitable<outcome::result<void>> sendProtocolProposalCoro(
+    CoroOutcome<void> sendProtocolProposalCoro(
         std::shared_ptr<basic::ReadWriter> connection,
         bool multistream_negotiated,
         const std::string &protocol);
 
-    boost::asio::awaitable<outcome::result<peer::ProtocolName>>
-    processProtocolMessageCoro(
+    CoroOutcome<peer::ProtocolName> processProtocolMessageCoro(
         std::shared_ptr<basic::ReadWriter> connection,
         bool is_initiator,
         bool multistream_negotiated,
