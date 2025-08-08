@@ -40,7 +40,7 @@ namespace libp2p::transport {
         "QuicConnection::readSome (coroutine) must not be called"};
   }
 
-  CoroOutcome<size_t> QuicConnection::writeSome(BytesIn, size_t) {
+  CoroOutcome<size_t> QuicConnection::writeSome(BytesIn) {
     throw std::logic_error{"QuicConnection::writeSome must not be called"};
   }
 

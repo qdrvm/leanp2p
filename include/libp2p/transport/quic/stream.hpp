@@ -32,7 +32,7 @@ namespace libp2p::connection {
 
     // Coroutine-based methods
     CoroOutcome<size_t> readSome(BytesOut out, size_t bytes) override;
-    CoroOutcome<size_t> writeSome(BytesIn in, size_t bytes) override;
+    CoroOutcome<size_t> writeSome(BytesIn in) override;
 
     outcome::result<void> close() override;
     void reset() override;

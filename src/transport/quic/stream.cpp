@@ -64,8 +64,7 @@ namespace libp2p::connection {
     co_return QuicError::STREAM_CLOSED;
   }
 
-  CoroOutcome<size_t> QuicStream::writeSome(BytesIn in, size_t bytes) {
-    ambigousSize(in, bytes);
+  CoroOutcome<size_t> QuicStream::writeSome(BytesIn in) {
     outcome::result<size_t> r = QuicError::STREAM_CLOSED;
     if (not stream_ctx_) {
       co_return r;
