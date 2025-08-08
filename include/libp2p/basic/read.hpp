@@ -13,7 +13,7 @@ namespace libp2p {
   inline CoroOutcome<void> read(std::shared_ptr<basic::Reader> reader,
                                 BytesOut out) {
     while (not out.empty()) {
-      BOOST_OUTCOME_CO_TRY(auto n, co_await reader->readSome(out, out.size()));
+      BOOST_OUTCOME_CO_TRY(auto n, co_await reader->readSome(out));
       if (n == 0) {
         throw std::logic_error{"libp2p::read zero bytes read"};
       }

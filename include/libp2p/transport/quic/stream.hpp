@@ -31,7 +31,7 @@ namespace libp2p::connection {
     void operator=(QuicStream &&) = delete;
 
     // Coroutine-based methods
-    CoroOutcome<size_t> readSome(BytesOut out, size_t bytes) override;
+    CoroOutcome<size_t> readSome(BytesOut out) override;
     CoroOutcome<size_t> writeSome(BytesIn in) override;
 
     outcome::result<void> close() override;

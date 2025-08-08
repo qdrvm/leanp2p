@@ -41,7 +41,7 @@ namespace libp2p::protocol {
       max_recv_size = config_.max_recv_size;
     }
     buf.resize(max_recv_size);
-    outcome::result<size_t> rread = co_await stream->readSome(buf, buf.size());
+    outcome::result<size_t> rread = co_await stream->readSome(buf);
 
     // onRead
     if (!rread) {

@@ -27,16 +27,7 @@ namespace libp2p::connection {
     reset();
   }
 
-  template <typename T>
-  void ambigousSize(std::span<T> &s, size_t n) {
-    if (n > s.size()) {
-      throw std::logic_error{"libp2p::ambigousSize"};
-    }
-    s = s.first(n);
-  }
-
-  CoroOutcome<size_t> QuicStream::readSome(BytesOut out, size_t bytes) {
-    ambigousSize(out, bytes);
+  CoroOutcome<size_t> QuicStream::readSome(BytesOut out) {
     if (not stream_ctx_) {
       co_return QuicError::STREAM_CLOSED;
     }

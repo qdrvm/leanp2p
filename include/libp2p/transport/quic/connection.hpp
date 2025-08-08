@@ -38,7 +38,7 @@ namespace libp2p::transport {
     QuicConnection(QuicConnection &&) = delete;
     void operator=(QuicConnection &&) = delete;
 
-    CoroOutcome<size_t> readSome(BytesOut out, size_t bytes) override;
+    CoroOutcome<size_t> readSome(BytesOut out) override;
     CoroOutcome<size_t> writeSome(BytesIn in) override;
 
     // Closeable
