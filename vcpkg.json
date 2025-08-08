@@ -7,6 +7,7 @@
     "boost-di",
     "boost-filesystem",
     "boost-program-options",
+    "boost-random",
     "boost-signals2",
     "fmt",
     "protobuf",
