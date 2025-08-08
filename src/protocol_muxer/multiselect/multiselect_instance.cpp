@@ -11,6 +11,7 @@
 #include <fmt/ranges.h>
 #include <boost/asio/use_awaitable.hpp>
 
+#include <libp2p/basic/read.hpp>
 #include <libp2p/log/logger.hpp>
 #include <libp2p/protocol_muxer/multiselect/serializing.hpp>
 #include <libp2p/protocol_muxer/protocol_muxer.hpp>
@@ -100,19 +101,8 @@ namespace libp2p::protocol_muxer::multiselect {
       span = span.first(static_cast<Parser::IndexType>(bytes_needed));
 
       try {
-        auto read_result = co_await connection->read(span, bytes_needed);
-        if (!read_result) {
-          co_return read_result.error();
-        }
-
-        auto bytes_read = read_result.value();
-        if (bytes_read > read_buffer->size()) {
-          log()->error("selectOneOfCoro(): invalid state");
-          co_return ProtocolMuxer::Error::INTERNAL_ERROR;
-        }
-
-        BytesIn data_span(*read_buffer);
-        data_span = data_span.first(bytes_read);
+        BOOST_OUTCOME_CO_TRY(co_await read(connection, span));
+        BytesIn data_span = span;
 
         auto state = parser_.consume(data_span);
         if (state == Parser::kOverflow) {

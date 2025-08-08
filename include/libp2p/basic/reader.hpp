@@ -25,8 +25,6 @@ namespace libp2p::basic {
      * @param cb callback
      */
 
-    virtual CoroOutcome<size_t> read(BytesOut out, size_t bytes) = 0;
-
     virtual CoroOutcome<size_t> readSome(BytesOut out, size_t bytes) = 0;
   };
 

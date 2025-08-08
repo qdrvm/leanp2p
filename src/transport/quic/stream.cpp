@@ -35,35 +35,6 @@ namespace libp2p::connection {
     s = s.first(n);
   }
 
-  CoroOutcome<size_t> QuicStream::read(BytesOut out, size_t bytes) {
-    ambigousSize(out, bytes);
-    if (not stream_ctx_) {
-      co_return QuicError::STREAM_CLOSED;
-    }
-    if (stream_ctx_->reading) {
-      co_return QuicError::STREAM_READ_IN_PROGRESS;
-    }
-    auto n = lsquic_stream_read(stream_ctx_->ls_stream, out.data(), out.size());
-    if (n == -1 && errno == EWOULDBLOCK) {
-      bool done = false;
-      outcome::result<size_t> r = QuicError::STREAM_CLOSED;
-      stream_ctx_->reading.emplace(
-          transport::lsquic::StreamCtx::Reading{out, [&](auto res) {
-                                                  r = res;
-                                                  done = true;
-                                                }});
-      lsquic_stream_wantread(stream_ctx_->ls_stream, 1);
-      while (!done) {
-        co_await boost::asio::post(boost::asio::use_awaitable);
-      }
-      co_return r;
-    }
-    if (n > 0) {
-      co_return n;
-    }
-    co_return QuicError::STREAM_CLOSED;
-  }
-
   CoroOutcome<size_t> QuicStream::readSome(BytesOut out, size_t bytes) {
     ambigousSize(out, bytes);
     if (not stream_ctx_) {

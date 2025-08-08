@@ -35,11 +35,6 @@ namespace libp2p::transport {
     std::ignore = close();
   }
 
-  CoroOutcome<size_t> QuicConnection::read(BytesOut, size_t) {
-    throw std::logic_error{
-        "QuicConnection::read (coroutine) must not be called"};
-  }
-
   CoroOutcome<size_t> QuicConnection::readSome(BytesOut, size_t) {
     throw std::logic_error{
         "QuicConnection::readSome (coroutine) must not be called"};
