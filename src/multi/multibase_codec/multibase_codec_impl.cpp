@@ -8,11 +8,11 @@
 
 #include <unordered_map>
 
-#include <boost/optional.hpp>
 #include <libp2p/multi/multibase_codec/codecs/base16.hpp>
 #include <libp2p/multi/multibase_codec/codecs/base32.hpp>
 #include <libp2p/multi/multibase_codec/codecs/base58.hpp>
 #include <libp2p/multi/multibase_codec/codecs/base64.hpp>
+#include <optional>
 
 namespace {
   using namespace libp2p::multi;          // NOLINT
@@ -24,7 +24,7 @@ namespace {
    * @return related encoding, if character stands for one of them, none
    * otherwise
    */
-  boost::optional<MultibaseCodec::Encoding> encodingByChar(char ch) {
+  std::optional<MultibaseCodec::Encoding> encodingByChar(char ch) {
     switch (ch) {
       case 'f':
         return MultibaseCodec::Encoding::BASE16_LOWER;
@@ -39,7 +39,7 @@ namespace {
       case 'm':
         return MultibaseCodec::Encoding::BASE64;
       default:
-        return boost::none;
+        return std::nullopt;
     }
   }
 

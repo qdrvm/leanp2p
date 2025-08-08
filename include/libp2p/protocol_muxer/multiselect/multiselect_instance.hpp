@@ -37,7 +37,7 @@ namespace libp2p::protocol_muxer::multiselect {
     using Protocols = boost::container::small_vector<std::string, 4>;
     using Packet = std::shared_ptr<MsgBuf>;
     using Parser = detail::Parser;
-    using MaybeResult = boost::optional<outcome::result<std::string>>;
+    using MaybeResult = std::optional<outcome::result<std::string>>;
 
     /// Coroutine versions of send and receive operations
     CoroOutcome<size_t> sendCoro(Packet packet);
@@ -56,10 +56,10 @@ namespace libp2p::protocol_muxer::multiselect {
         bool multistream_negotiated,
         bool wait_for_protocol_reply,
         size_t current_protocol,
-        boost::optional<size_t> &wait_for_reply_sent,
+        std::optional<size_t> &wait_for_reply_sent,
         const boost::container::small_vector<std::string, 4> &local_protocols,
         const Message &msg,
-        boost::optional<std::shared_ptr<MsgBuf>> &na_response);
+        std::optional<std::shared_ptr<MsgBuf>> &na_response);
 
     /// Owner of this object, needed for reuse of instances
     Multiselect &owner_;
@@ -92,7 +92,7 @@ namespace libp2p::protocol_muxer::multiselect {
     /// Server specific: has value if negotiation was successful and
     /// the instance waits for write callback completion.
     /// Inside is index of protocol chosen
-    boost::optional<size_t> wait_for_reply_sent_;
+    std::optional<size_t> wait_for_reply_sent_;
 
     /// Incoming messages parser
     Parser parser_;
@@ -108,7 +108,7 @@ namespace libp2p::protocol_muxer::multiselect {
     bool is_writing_ = false;
 
     /// Cache: serialized NA response
-    boost::optional<Packet> na_response_;
+    std::optional<Packet> na_response_;
   };
 
 }  // namespace libp2p::protocol_muxer::multiselect

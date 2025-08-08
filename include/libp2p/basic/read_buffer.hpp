@@ -9,7 +9,7 @@
 #include <deque>
 #include <vector>
 
-#include <boost/optional.hpp>
+#include <optional>
 
 #include <libp2p/common/types.hpp>
 
@@ -93,8 +93,8 @@ namespace libp2p::basic {
     /// returns data if filled up to expected size or empty option if not,
     /// modifies data (cuts head)
     /// Data returned is valid until next expect() call && data is live
-    boost::optional<BytesIn> add(BytesIn &data);
-    boost::optional<BytesOut> add(BytesOut &data);
+    std::optional<BytesIn> add(BytesIn &data);
+    std::optional<BytesOut> add(BytesOut &data);
 
     /// Resets to initial state
     void reset();

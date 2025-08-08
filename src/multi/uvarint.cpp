@@ -28,7 +28,7 @@ namespace libp2p::multi {
                // NOLINTNEXTLINE(cppcoreguidelines-narrowing-conversions)
                varint_bytes.begin() + varint_size) {}
 
-  boost::optional<UVarint> UVarint::create(BytesIn varint_bytes) {
+  std::optional<UVarint> UVarint::create(BytesIn varint_bytes) {
     size_t size = calculateSize(varint_bytes);
     if (size > 0) {
       return UVarint{varint_bytes, size};

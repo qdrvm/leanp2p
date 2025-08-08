@@ -7,7 +7,7 @@
 #include <openssl/asn1.h>
 #include <openssl/x509_vfy.h>
 #include <boost/asio/ssl/verify_context.hpp>
-#include <boost/optional.hpp>
+#include <optional>
 
 #include <libp2p/crypto/ecdsa_provider/ecdsa_provider_impl.hpp>
 #include <libp2p/crypto/ed25519_provider/ed25519_provider_impl.hpp>
@@ -335,7 +335,7 @@ namespace libp2p::security::tls_details {
     };
 
     // extracts peer's pubkey and extension signature from ASN1 sequence
-    boost::optional<KeyAndSignature> unmarshalExtensionData(BytesIn data) {
+    std::optional<KeyAndSignature> unmarshalExtensionData(BytesIn data) {
       KeyAndSignature result;
 
       bool ok = (data.size() == kExtensionDataSize) && (data[0] == kSequenceTag)
@@ -346,7 +346,7 @@ namespace libp2p::security::tls_details {
              && (data[kSigOffset + 1] == kSignatureSize);
 
       if (!ok) {
-        return boost::none;
+        return std::nullopt;
       }
 
       auto slice = data.subspan(4, kMarshalledPublicKeySize);

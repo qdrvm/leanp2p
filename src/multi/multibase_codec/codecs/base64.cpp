@@ -37,8 +37,8 @@
 #include <array>
 #include <regex>
 
-#include <boost/optional.hpp>
 #include <libp2p/multi/multibase_codec/codecs/base_error.hpp>
+#include <optional>
 
 namespace {
 
@@ -67,7 +67,7 @@ namespace {
   };
 
   /// Returns max bytes needed to decode a base64 string
-  inline std::size_t constexpr decodedSize(std::size_t n) {
+  inline constexpr std::size_t decodedSize(std::size_t n) {
     return n / 4 * 3;  // requires n&3==0, smaller
   }
 
@@ -138,7 +138,7 @@ namespace libp2p::multi::detail {
    * @param src to be decoded
    * @return bytes, if decoding went successful, none otherwise
    */
-  boost::optional<std::vector<uint8_t>> decodeImpl(std::string_view src) {
+  std::optional<std::vector<uint8_t>> decodeImpl(std::string_view src) {
     std::vector<uint8_t> out(decodedSize(src.size()));
 
     std::vector<unsigned char> c3(3);

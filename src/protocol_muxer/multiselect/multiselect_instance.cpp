@@ -42,7 +42,7 @@ namespace libp2p::protocol_muxer::multiselect {
     bool multistream_negotiated = !negotiate_multiselect;
     bool wait_for_protocol_reply = false;
     size_t current_protocol = 0;
-    boost::optional<size_t> wait_for_reply_sent;
+    std::optional<size_t> wait_for_reply_sent;
 
     // Store protocols in a local variable instead of using the member variable
     boost::container::small_vector<std::string, 4> local_protocols(
@@ -76,7 +76,7 @@ namespace libp2p::protocol_muxer::multiselect {
     }
 
     // Cache for NA response - local to this coroutine
-    boost::optional<std::shared_ptr<MsgBuf>> na_response;
+    std::optional<std::shared_ptr<MsgBuf>> na_response;
 
     // Main negotiation loop
     while (true) {
@@ -218,10 +218,10 @@ namespace libp2p::protocol_muxer::multiselect {
       bool multistream_negotiated,
       bool wait_for_protocol_reply,
       size_t current_protocol,
-      boost::optional<size_t> &wait_for_reply_sent,
+      std::optional<size_t> &wait_for_reply_sent,
       const boost::container::small_vector<std::string, 4> &local_protocols,
       const Message &msg,
-      boost::optional<std::shared_ptr<MsgBuf>> &na_response) {
+      std::optional<std::shared_ptr<MsgBuf>> &na_response) {
     // Handle protocol name message
     if (is_initiator) {
       // Client side
