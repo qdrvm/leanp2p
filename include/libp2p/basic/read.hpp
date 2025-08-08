@@ -6,7 +6,6 @@
 
 #pragma once
 
-#include <boost/outcome/try.hpp>
 #include <libp2p/basic/reader.hpp>
 
 namespace libp2p {

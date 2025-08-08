@@ -57,22 +57,15 @@ namespace libp2p::protocol_muxer::multiselect {
     // Initial protocol negotiation
     if (is_initiator) {
       // Send the first protocol proposal
-      auto result =
+      BOOST_OUTCOME_CO_TRY(
           co_await sendProtocolProposalCoro(connection,
                                             multistream_negotiated,
-                                            local_protocols[current_protocol]);
-      if (!result) {
-        co_return result.error();
-      }
+                                            local_protocols[current_protocol]));
       wait_for_protocol_reply = true;
     } else if (negotiate_multiselect) {
       // Send opening protocol ID (server side)
-      auto msg = detail::createMessage(kProtocolId);
-      if (!msg) {
-        co_return msg.error();
-      }
-      auto packet = std::make_shared<MsgBuf>(msg.value());
-      BOOST_OUTCOME_CO_TRY(co_await write(connection, *packet));
+      BOOST_OUTCOME_CO_TRY(auto msg, detail::createMessage(kProtocolId));
+      BOOST_OUTCOME_CO_TRY(co_await write(connection, msg));
     }
 
     // Cache for NA response - local to this coroutine
@@ -143,13 +136,10 @@ namespace libp2p::protocol_muxer::multiselect {
                 ++current_protocol;
 
                 if (current_protocol < local_protocols.size()) {
-                  auto result = co_await sendProtocolProposalCoro(
+                  BOOST_OUTCOME_CO_TRY(co_await sendProtocolProposalCoro(
                       connection,
                       multistream_negotiated,
-                      local_protocols[current_protocol]);
-                  if (!result) {
-                    co_return result.error();
-                  }
+                      local_protocols[current_protocol]));
                   wait_for_protocol_reply = true;
                 } else {
                   // No more protocols to propose
@@ -191,22 +181,16 @@ namespace libp2p::protocol_muxer::multiselect {
       bool multistream_negotiated,
       const std::string &protocol) {
     // Create the protocol proposal message based on negotiation state
-    outcome::result<MsgBuf> msg_res =
-        outcome::failure(std::make_error_code(std::errc::invalid_argument));
+    MsgBuf msg;
     if (!multistream_negotiated) {
       std::array<std::string_view, 2> a({kProtocolId, protocol});
-      msg_res = detail::createMessage(a, false);
+      BOOST_OUTCOME_CO_TRY(msg, detail::createMessage(a, false));
     } else {
-      msg_res = detail::createMessage(protocol);
-    }
-
-    if (!msg_res) {
-      co_return msg_res.error();
+      BOOST_OUTCOME_CO_TRY(msg, detail::createMessage(protocol));
     }
 
     // Send the message
-    auto packet = std::make_shared<MsgBuf>(msg_res.value());
-    BOOST_OUTCOME_CO_TRY(co_await write(connection, *packet));
+    BOOST_OUTCOME_CO_TRY(co_await write(connection, msg));
 
     co_return outcome::success();
   }
@@ -243,13 +227,9 @@ namespace libp2p::protocol_muxer::multiselect {
         wait_for_reply_sent = idx;
 
         // Send protocol acceptance
-        auto accept_msg = detail::createMessage(msg.content);
-        if (!accept_msg) {
-          co_return accept_msg.error();
-        }
-
-        auto packet = std::make_shared<MsgBuf>(accept_msg.value());
-        BOOST_OUTCOME_CO_TRY(co_await write(connection, *packet));
+        BOOST_OUTCOME_CO_TRY(auto accept_msg,
+                             detail::createMessage(msg.content));
+        BOOST_OUTCOME_CO_TRY(co_await write(connection, accept_msg));
         // Protocol negotiation successful
         co_return local_protocols[wait_for_reply_sent.value()];
       }
@@ -259,11 +239,8 @@ namespace libp2p::protocol_muxer::multiselect {
     // Not found, send NA
     SL_DEBUG(log(), "unknown protocol {} proposed by client", msg.content);
     if (!na_response) {
-      auto na_msg = detail::createMessage(kNA);
-      if (!na_msg) {
-        co_return na_msg.error();
-      }
-      na_response = std::make_shared<MsgBuf>(na_msg.value());
+      BOOST_OUTCOME_CO_TRY(auto na_msg, detail::createMessage(kNA));
+      na_response = std::make_shared<MsgBuf>(na_msg);
     }
 
     BOOST_OUTCOME_CO_TRY(co_await write(connection, *na_response.value()));

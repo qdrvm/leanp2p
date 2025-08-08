@@ -7,6 +7,7 @@
 #pragma once
 
 #include <boost/asio/awaitable.hpp>
+#include <boost/outcome/try.hpp>
 #include <qtils/outcome.hpp>
 
 namespace libp2p {

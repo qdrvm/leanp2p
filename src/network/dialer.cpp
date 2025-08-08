@@ -8,9 +8,6 @@
 
 #include <libp2p/network/dialer.hpp>
 
-#include <functional>
-#include <iostream>
-
 #include <boost/asio/async_result.hpp>
 #include <boost/asio/this_coro.hpp>
 #include <boost/asio/use_awaitable.hpp>
@@ -145,16 +142,9 @@ namespace libp2p::network {
   CoroOutcome<std::shared_ptr<connection::Stream>> Dialer::newStream(
       std::shared_ptr<connection::CapableConnection> conn,
       StreamProtocols protocols) {
-    auto stream_res = conn->newStream();
-    if (stream_res.has_error()) {
-      co_return stream_res.error();
-    }
-    auto &&stream = stream_res.value();
-    outcome::result<peer::ProtocolName> rprotocol =
-        co_await multiselect_->selectOneOf(protocols, stream, true, true);
-    if (!rprotocol.has_value()) {
-      co_return rprotocol.error();
-    }
+    BOOST_OUTCOME_CO_TRY(auto stream, conn->newStream());
+    BOOST_OUTCOME_CO_TRY(
+        co_await multiselect_->selectOneOf(protocols, stream, true, true));
     co_return stream;
   }
 
@@ -164,12 +154,7 @@ namespace libp2p::network {
              "New stream to {} for {} (peer info)",
              p.id.toBase58().substr(46),
              fmt::join(protocols, " "));
-    outcome::result<std::shared_ptr<connection::CapableConnection>> rconn =
-        co_await dial(p);
-    if (!rconn) {
-      co_return rconn.error();
-    }
-    auto &&conn = rconn.value();
+    BOOST_OUTCOME_CO_TRY(auto conn, co_await dial(p));
     co_return co_await newStream(conn, protocols);
   }
 

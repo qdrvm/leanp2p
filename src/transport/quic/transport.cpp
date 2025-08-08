@@ -31,11 +31,7 @@ namespace libp2p::transport {
 
   CoroOutcome<std::shared_ptr<connection::CapableConnection>>
   QuicTransport::dial(const PeerId &peer, Multiaddress address) {
-    auto r = detail::asQuic(address);
-    if (not r) {
-      co_return r.error();
-    }
-    auto &info = r.value();
+    BOOST_OUTCOME_CO_TRY(auto info, detail::asQuic(address));
     std::string host;
     if (auto ip = std::get_if<boost::asio::ip::address>(&info.ip)) {
       host = ip->to_string();

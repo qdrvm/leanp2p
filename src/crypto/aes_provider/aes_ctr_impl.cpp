@@ -52,9 +52,7 @@ namespace libp2p::crypto::aes {
   }
 
   outcome::result<Bytes> AesCtrImpl::crypt(BytesIn data) const {
-    if (initialization_error_.has_error()) {
-      return initialization_error_.error();
-    }
+    OUTCOME_TRY(initialization_error_);
 
     Bytes out_buffer;
     out_buffer.resize(data.size() + AES_BLOCK_SIZE);
@@ -76,9 +74,7 @@ namespace libp2p::crypto::aes {
   }
 
   outcome::result<Bytes> AesCtrImpl::finalize() {
-    if (initialization_error_.has_error()) {
-      return initialization_error_.error();
-    }
+    OUTCOME_TRY(initialization_error_);
     initialization_error_ = OpenSslError::STREAM_FINALIZED;
 
     Bytes out_buffer;
