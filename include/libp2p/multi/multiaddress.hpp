@@ -13,6 +13,7 @@
 #include <string_view>
 #include <unordered_map>
 
+#include <libp2p/common/std_format_as.hpp>
 #include <libp2p/common/types.hpp>
 #include <libp2p/multi/multiaddress_protocol_list.hpp>
 #include <libp2p/outcome/outcome.hpp>
