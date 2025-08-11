@@ -2,6 +2,7 @@
 
 # Add subdirectories to collect source files
 add_subdirectory(basic)
+add_subdirectory(c)
 add_subdirectory(common)
 add_subdirectory(crypto)
 add_subdirectory(host)

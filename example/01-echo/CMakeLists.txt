@@ -57,3 +57,19 @@ target_link_libraries(libp2p_echo_client
     p2p_crypto_error
     p2p_peer_errors
 )
+
+# C API Echo Server
+add_executable(libp2p_echo_server_c
+    libp2p_echo_server_c.c
+)
+target_link_libraries(libp2p_echo_server_c
+    libp2p_c
+)
+
+# C API Echo Client
+add_executable(libp2p_echo_client_c
+    libp2p_echo_client_c.c
+)
+target_link_libraries(libp2p_echo_client_c
+    libp2p_c
+)
