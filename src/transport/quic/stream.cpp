@@ -64,7 +64,7 @@ namespace libp2p::connection {
     if (n > 0 && lsquic_stream_flush(stream_ctx_->ls_stream) == 0) {
       r = n;
     }
-    stream_ctx_->engine->process();
+    stream_ctx_->engine->wantProcess();
     co_return r;
   }
 

@@ -234,43 +234,32 @@ namespace libp2p::transport::lsquic {
     readLoop();
   }
 
-  CoroOutcome<std::shared_ptr<QuicConnection>> Engine::connect(
+  ConnectionPtrCoroOutcome Engine::connect(
       const boost::asio::ip::udp::endpoint &remote, const PeerId &peer) {
-    if (connecting_) {
-      throw std::logic_error{"Engine::connect invalid state"};
-    }
-    std::optional<outcome::result<std::shared_ptr<QuicConnection>>> result;
-    bool done = false;
-    connecting_ =
-        Connecting{remote,
-                   peer,
-                   [&](outcome::result<std::shared_ptr<QuicConnection>> res) {
-                     result = std::move(res);
-                     done = true;
-                   }};
     start();
-    lsquic_engine_connect(engine_,
-                          N_LSQVER,
-                          socket_local_.data(),
-                          remote.data(),
-                          this,
-                          nullptr,
-                          nullptr,
-                          0,
-                          nullptr,
-                          0,
-                          nullptr,
-                          0);
-    if (auto op = qtils::optionTake(connecting_)) {
-      op->cb(QuicError::CANT_CREATE_CONNECTION);
-      co_return QuicError::CANT_CREATE_CONNECTION;
-    }
-    process();
-    // Await until the callback sets 'done' to true
-    while (!done) {
-      co_await boost::asio::this_coro::executor;
-    }
-    co_return *result;
+    co_return co_await coroHandler<ConnectionPtrOutcome>(
+        [&](CoroHandler<ConnectionPtrOutcome> &&handler) {
+          if (connecting_) {
+            throw std::logic_error{"Engine::connect invalid state"};
+          }
+          connecting_.emplace(Connecting{remote, peer, std::move(handler)});
+          lsquic_engine_connect(engine_,
+                                N_LSQVER,
+                                socket_local_.data(),
+                                remote.data(),
+                                this,
+                                nullptr,
+                                nullptr,
+                                0,
+                                nullptr,
+                                0,
+                                nullptr,
+                                0);
+          if (auto op = qtils::optionTake(connecting_)) {
+            op->cb(QuicError::CANT_CREATE_CONNECTION);
+          }
+          wantProcess();
+        });
   }
 
   outcome::result<std::shared_ptr<connection::QuicStream>> Engine::newStream(
@@ -290,8 +279,20 @@ namespace libp2p::transport::lsquic {
     return stream;
   }
 
-  CoroOutcome<std::shared_ptr<QuicConnection>> Engine::asyncAccept() {
+  ConnectionPtrCoroOutcome Engine::asyncAccept() {
     co_return co_await conn_signal_.receive();
+  }
+
+  void Engine::wantProcess() {
+    if (want_process_) {
+      return;
+    }
+    want_process_ = true;
+    boost::asio::post(*io_context_, [weak_self{weak_from_this()}] {
+      if (auto self = weak_self.lock()) {
+        self->process();
+      }
+    });
   }
 
   void Engine::process() {
@@ -340,7 +341,7 @@ namespace libp2p::transport::lsquic {
           socket_.async_wait(boost::asio::socket_base::wait_read,
                              std::move(cb));
         }
-        return;
+        break;
       }
       lsquic_engine_packet_in(engine_,
                               reading_.buf.data(),
@@ -349,8 +350,8 @@ namespace libp2p::transport::lsquic {
                               reading_.remote.data(),
                               this,
                               0);
-      process();
     }
+    process();
   }
 
   void Engine::onConnection(

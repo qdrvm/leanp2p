@@ -51,15 +51,15 @@ namespace libp2p::transport::lsquic {
   struct ConnCtx;
   struct StreamCtx;
 
-  using OnConnect =
-      std::function<void(outcome::result<std::shared_ptr<QuicConnection>>)>;
+  using ConnectionPtrOutcome = outcome::result<std::shared_ptr<QuicConnection>>;
+  using ConnectionPtrCoroOutcome = CoroOutcome<std::shared_ptr<QuicConnection>>;
   /**
    * Connect operation arguments.
    */
   struct Connecting {
     boost::asio::ip::udp::endpoint remote;
     PeerId peer;
-    OnConnect cb;
+    CoroHandler<ConnectionPtrOutcome> cb;
   };
   /**
    * `lsquic_conn_ctx_t` for libp2p connection.
@@ -109,14 +109,15 @@ namespace libp2p::transport::lsquic {
       return local_;
     }
     void start();
-    CoroOutcome<std::shared_ptr<QuicConnection>> connect(
+    ConnectionPtrCoroOutcome connect(
         const boost::asio::ip::udp::endpoint &remote, const PeerId &peer);
     outcome::result<std::shared_ptr<connection::QuicStream>> newStream(
         ConnCtx *conn_ctx);
-    CoroOutcome<std::shared_ptr<QuicConnection>> asyncAccept();
-    void process();
+    ConnectionPtrCoroOutcome asyncAccept();
+    void wantProcess();
 
    private:
+    void process();
     void readLoop();
     void onConnection(outcome::result<std::shared_ptr<QuicConnection>> conn);
 
@@ -130,6 +131,7 @@ namespace libp2p::transport::lsquic {
     Multiaddress local_;
     lsquic_engine_t *engine_ = nullptr;
     bool started_ = false;
+    bool want_process_ = false;
     std::optional<Connecting> connecting_;
     struct Reading {
       static constexpr size_t kMaxUdpPacketSize = 64 << 10;
