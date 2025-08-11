@@ -8,54 +8,19 @@
 #include <libp2p/injector/host_injector.hpp>
 
 #include <libp2p/common/sample_peer.hpp>
-#include <libp2p/log/configurator.hpp>
-#include <libp2p/log/logger.hpp>
+#include <libp2p/log/simple.hpp>
 #include <libp2p/muxer/muxed_connection_config.hpp>
 #include <libp2p/protocol/echo/echo.hpp>
 #include <libp2p/transport/quic/transport.hpp>
 
-namespace {
-  // YAML configuration for the logging system
-  // Sets up console logging with info level for the main group and libp2p
-  const std::string logger_config(R"(
-# ----------------
-sinks:
- - name: console
-   type: console
-   color: true
-groups:
- - name: main
-   sink: console
-   level: info
-   children:
-     - name: libp2p
-# ----------------
- )");
-}  // namespace
-
 int main(int argc, char *argv[]) {
-  // Initialize the logging system with both libp2p's default config
-  // and our custom application-specific logging configuration
-  auto logging_system = std::make_shared<soralog::LoggingSystem>(
-      std::make_shared<soralog::ConfiguratorFromYAML>(
-          // Original LibP2P logging config
-          std::make_shared<libp2p::log::Configurator>(),
-          // Additional logging config for application
-          logger_config));
+  // Set the global logging system
+  libp2p::simpleLoggingSystem();
 
-  // Configure the logging system and handle any errors
-  auto r = logging_system->configure();
-  if (not r.message.empty()) {
-    (r.has_error ? std::cerr : std::cout) << r.message << std::endl;
-  }
-  if (r.has_error) {
-    exit(EXIT_FAILURE);
-  }
-
-  // Set the global logging system and create a logger for this application
-  libp2p::log::setLoggingSystem(logging_system);
+  // Create a logger for this application
   auto log = libp2p::log::createLogger("EchoServer");
 
+  // Get sample peer config by index
   libp2p::SamplePeer sample_peer{0};
 
   // Create the dependency injection container (injector) for the libp2p host
