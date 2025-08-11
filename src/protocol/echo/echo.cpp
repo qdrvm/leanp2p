@@ -4,92 +4,55 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <boost/asio/co_spawn.hpp>
-#include <boost/asio/detached.hpp>
 #include <boost/asio/io_context.hpp>
 
 #include <libp2p/basic/write.hpp>
+#include <libp2p/coro/spawn.hpp>
 #include <libp2p/protocol/echo/echo.hpp>
+#include <libp2p/transport/quic/error.hpp>
 #include <qtils/bytestr.hpp>
 #include <utility>
 
 namespace libp2p::protocol {
 
   void Echo::handle(std::shared_ptr<connection::Stream> stream) {
-    boost::asio::co_spawn(
-        *io_context_,
-        [this, stream]() mutable -> Coro<void> {
-          while (stream && !stream->isClosed()) {
-            co_await doRead(stream);
-            // If max_server_repeats is reached and not infinite, break
-            if (!repeat_infinitely_ && config_.max_server_repeats == 0) {
-              break;
-            }
-          }
-        },
-        boost::asio::detached);
+    coroSpawn(*io_context_, doRead(stream));
   }
 
   Coro<void> Echo::doRead(std::shared_ptr<connection::Stream> stream) {
-    if (!repeat_infinitely_ && config_.max_server_repeats == 0) {
-      stop(std::move(stream));
-      co_return;
-    }
+    auto max_repeat = config_.max_server_repeats;
     std::vector<uint8_t> buf;
-    size_t max_recv_size = 65536;
-    if (config_.max_recv_size < max_recv_size) {
-      max_recv_size = config_.max_recv_size;
-    }
-    buf.resize(max_recv_size);
-    outcome::result<size_t> rread = co_await stream->readSome(buf);
-
-    // onRead
-    if (!rread) {
-      if (!stream->isClosed()) {
-        log_->error("error happened during read: {}", rread.error());
+    while (repeat_infinitely_ or max_repeat != 0) {
+      buf.resize(config_.max_recv_size);
+      auto read_result = co_await stream->readSome(buf);
+      if (not read_result.has_value()) {
+        if (read_result.error() != QuicError::STREAM_CLOSED) {
+          log_->error("error happened during read: {}", read_result.error());
+        }
+        break;
       }
-      stop(std::move(stream));
-      co_return;
+      buf.resize(read_result.value());
+      static constexpr size_t kMsgSizeThreshold = 120;
+      if (buf.size() < kMsgSizeThreshold) {
+        log_->info("read message: {}", qtils::byte2str(buf));
+      } else {
+        log_->info("read {} bytes", buf.size());
+      }
+      auto write_result = co_await write(stream, buf);
+      if (not write_result.has_value()) {
+        log_->error("error happened during write: {}", write_result.error());
+        break;
+      }
+      if (buf.size() < kMsgSizeThreshold) {
+        log_->info("written message: {}", qtils::byte2str(buf));
+      } else {
+        log_->info("written {} bytes", buf.size());
+      }
+      if (not repeat_infinitely_) {
+        --max_repeat;
+      }
     }
-    static constexpr size_t kMsgSizeThreshold = 120;
-    if (rread.value() < kMsgSizeThreshold) {
-      log_->debug(
-          "read message: {}",
-          std::string{buf.begin(),
-                      // NOLINTNEXTLINE(cppcoreguidelines-narrowing-conversions)
-                      buf.begin() + rread.value()});
-    } else {
-      log_->debug("read {} bytes", rread.value());
-    }
-    size_t size = rread.value();
-
-    // doWrite
-    if (size == 0) {
-      log_->debug("read zero bytes, closing stream");
-      stop(std::move(stream));
-      co_return;
-    }
-    auto write_buf = std::vector<uint8_t>(
-        buf.begin(),
-        // NOLINTNEXTLINE(cppcoreguidelines-narrowing-conversions)
-        buf.begin() + size);
-    auto rwrite = co_await write(stream, write_buf);
-
-    // onWrite
-    if (rwrite.has_error()) {
-      log_->error("error happened during write: {}", rwrite.error().message());
-      stop(std::move(stream));
-      co_return;
-    }
-    if (buf.size() < 120) {
-      log_->info("written message: {}", qtils::byte2str(buf));
-    } else {
-      log_->info("written {} bytes", buf.size());
-    }
-
-    if (!repeat_infinitely_) {
-      --config_.max_server_repeats;
-    }
+    stop(std::move(stream));
   }
 
   void Echo::stop(std::shared_ptr<connection::Stream> stream) {

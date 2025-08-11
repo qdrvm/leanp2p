@@ -87,10 +87,6 @@ namespace libp2p::connection {
     return initiator_;
   }
 
-  bool QuicStream::isClosed() const {
-    return not stream_ctx_;
-  }
-
   outcome::result<PeerId> QuicStream::remotePeerId() const {
     return conn_->remotePeer();
   }

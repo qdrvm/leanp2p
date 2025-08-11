@@ -10,6 +10,7 @@
 #include <libp2p/crypto/key_marshaller.hpp>
 #include <libp2p/multi/multiaddress.hpp>
 #include <libp2p/peer/identity_manager.hpp>
+#include <libp2p/peer/peer_info.hpp>
 #include <qtils/bytes.hpp>
 
 namespace libp2p {
@@ -17,11 +18,13 @@ namespace libp2p {
     SamplePeer(crypto::KeyPair keypair,
                PeerId peer_id,
                Multiaddress listen,
-               Multiaddress connect)
+               Multiaddress connect,
+               PeerInfo connect_info)
         : keypair{keypair},
           peer_id{peer_id},
           listen{listen},
-          connect{connect} {}
+          connect{connect},
+          connect_info{connect_info} {}
 
     SamplePeer(uint32_t index)
         : SamplePeer{[index] {
@@ -56,12 +59,19 @@ namespace libp2p {
                 Multiaddress::create(
                     std::format("{}/p2p/{}", listen, peer_id.toBase58()))
                     .value();
-            return SamplePeer{keypair, peer_id, listen, connect};
+            return SamplePeer{
+                keypair,
+                peer_id,
+                listen,
+                connect,
+                {peer_id, {connect}},
+            };
           }()} {}
 
     crypto::KeyPair keypair;
     PeerId peer_id;
     Multiaddress listen;
     Multiaddress connect;
+    PeerInfo connect_info;
   };
 }  // namespace libp2p
