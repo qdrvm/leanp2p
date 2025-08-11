@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <boost/asio/use_awaitable.hpp>
 #include <libp2p/transport/quic/connection.hpp>
 #include <libp2p/transport/quic/engine.hpp>
 #include <libp2p/transport/quic/error.hpp>
@@ -29,26 +28,18 @@ namespace libp2p::transport {
         local_peer_{std::move(local_peer)},
         peer_{std::move(peer)},
         key_{std::move(key)},
-        stream_signal_{io_context_->get_executor(), 1} {}
+        stream_signal_{{io_context_->get_executor(), 1}} {}
 
   QuicConnection::~QuicConnection() {
     std::ignore = close();
   }
 
-  boost::asio::awaitable<outcome::result<size_t>> QuicConnection::read(BytesOut,
-                                                                       size_t) {
-    throw std::logic_error{
-        "QuicConnection::read (coroutine) must not be called"};
-  }
-
-  boost::asio::awaitable<outcome::result<size_t>> QuicConnection::readSome(
-      BytesOut, size_t) {
+  CoroOutcome<size_t> QuicConnection::readSome(BytesOut) {
     throw std::logic_error{
         "QuicConnection::readSome (coroutine) must not be called"};
   }
 
-  boost::asio::awaitable<outcome::result<size_t>> QuicConnection::writeSome(
-      BytesIn, size_t) {
+  CoroOutcome<size_t> QuicConnection::writeSome(BytesIn) {
     throw std::logic_error{"QuicConnection::writeSome must not be called"};
   }
 
@@ -95,7 +86,7 @@ namespace libp2p::transport {
     cb(newStream());
   }
 
-  boost::asio::awaitable<outcome::result<std::shared_ptr<connection::Stream>>>
+  CoroOutcome<std::shared_ptr<connection::Stream>>
   QuicConnection::newStreamCoroutine() {}
 
   outcome::result<std::shared_ptr<libp2p::connection::Stream>>
@@ -107,27 +98,17 @@ namespace libp2p::transport {
     return stream;
   }
 
-  boost::asio::awaitable<outcome::result<std::shared_ptr<connection::Stream>>>
+  CoroOutcome<std::shared_ptr<connection::Stream>>
   QuicConnection::acceptStream() {
-    try {
-      std::optional<std::shared_ptr<connection::Stream>> opt_conn =
-          co_await stream_signal_.async_receive(boost::asio::use_awaitable);
-      if (not opt_conn.has_value()) {
-        co_return QuicError::CANT_OPEN_STREAM;
-      }
-      co_return opt_conn.value();
-    } catch (const boost::system::system_error &e) {
-      co_return e.code();
-    }
+    co_return co_await stream_signal_.receive();
   }
 
   void QuicConnection::onStream(std::shared_ptr<connection::Stream> stream) {
-    std::optional<std::shared_ptr<QuicConnection>> opt_conn;
-    stream_signal_.try_send(boost::system::error_code{}, stream);
+    stream_signal_.send(stream);
   }
 
   void QuicConnection::onClose() {
     conn_ctx_ = nullptr;
-    stream_signal_.try_send(QuicError::CONN_CLOSED, std::nullopt);
+    stream_signal_.send(QuicError::CONN_CLOSED);
   }
 }  // namespace libp2p::transport

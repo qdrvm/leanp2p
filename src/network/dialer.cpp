@@ -8,12 +8,6 @@
 
 #include <libp2p/network/dialer.hpp>
 
-#include <functional>
-#include <iostream>
-
-#include <boost/asio/async_result.hpp>
-#include <boost/asio/this_coro.hpp>
-#include <boost/asio/use_awaitable.hpp>
 #include <libp2p/connection/stream.hpp>
 #include <libp2p/log/logger.hpp>
 
@@ -36,9 +30,8 @@ OUTCOME_CPP_DEFINE_CATEGORY(libp2p::network, Dialer::Error, e) {
 
 namespace libp2p::network {
 
-  boost::asio::awaitable<
-      outcome::result<std::shared_ptr<connection::CapableConnection>>>
-  Dialer::dial(const PeerInfo &p) {
+  CoroOutcome<std::shared_ptr<connection::CapableConnection>> Dialer::dial(
+      const PeerInfo &p) {
     SL_TRACE(log_, "Dialing to {}", p.id.toBase58().substr(46));
     if (auto c = cmgr_->getBestConnectionForPeer(p.id); c != nullptr) {
       // we have connection to this peer
@@ -75,9 +68,8 @@ namespace libp2p::network {
     co_return co_await rotate(p.id);
   }
 
-  boost::asio::awaitable<
-      outcome::result<std::shared_ptr<connection::CapableConnection>>>
-  Dialer::rotate(const peer::PeerId &peer_id) {
+  CoroOutcome<std::shared_ptr<connection::CapableConnection>> Dialer::rotate(
+      const peer::PeerId &peer_id) {
     auto ctx_found = dialing_peers_.find(peer_id);
     if (dialing_peers_.end() == ctx_found) {
       SL_ERROR(
@@ -144,34 +136,22 @@ namespace libp2p::network {
     }
   }
 
-  boost::asio::awaitable<outcome::result<std::shared_ptr<connection::Stream>>>
-  Dialer::newStream(std::shared_ptr<connection::CapableConnection> conn,
-                    StreamProtocols protocols) {
-    auto stream_res = conn->newStream();
-    if (stream_res.has_error()) {
-      co_return stream_res.error();
-    }
-    auto &&stream = stream_res.value();
-    outcome::result<peer::ProtocolName> rprotocol =
-        co_await multiselect_->selectOneOf(protocols, stream, true, true);
-    if (!rprotocol.has_value()) {
-      co_return rprotocol.error();
-    }
+  CoroOutcome<std::shared_ptr<connection::Stream>> Dialer::newStream(
+      std::shared_ptr<connection::CapableConnection> conn,
+      StreamProtocols protocols) {
+    BOOST_OUTCOME_CO_TRY(auto stream, conn->newStream());
+    BOOST_OUTCOME_CO_TRY(
+        co_await multiselect_->selectOneOf(protocols, stream, true, true));
     co_return stream;
   }
 
-  boost::asio::awaitable<outcome::result<std::shared_ptr<connection::Stream>>>
-  Dialer::newStream(const peer::PeerInfo &p, StreamProtocols protocols) {
+  CoroOutcome<std::shared_ptr<connection::Stream>> Dialer::newStream(
+      const peer::PeerInfo &p, StreamProtocols protocols) {
     SL_TRACE(log_,
              "New stream to {} for {} (peer info)",
              p.id.toBase58().substr(46),
              fmt::join(protocols, " "));
-    outcome::result<std::shared_ptr<connection::CapableConnection>> rconn =
-        co_await dial(p);
-    if (!rconn) {
-      co_return rconn.error();
-    }
-    auto &&conn = rconn.value();
+    BOOST_OUTCOME_CO_TRY(auto conn, co_await dial(p));
     co_return co_await newStream(conn, protocols);
   }
 

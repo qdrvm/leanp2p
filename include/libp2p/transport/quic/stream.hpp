@@ -31,17 +31,12 @@ namespace libp2p::connection {
     void operator=(QuicStream &&) = delete;
 
     // Coroutine-based methods
-    boost::asio::awaitable<outcome::result<size_t>> read(BytesOut out,
-                                                         size_t bytes) override;
-    boost::asio::awaitable<outcome::result<size_t>> readSome(
-        BytesOut out, size_t bytes) override;
-    boost::asio::awaitable<outcome::result<size_t>> writeSome(
-        BytesIn in, size_t bytes) override;
+    CoroOutcome<size_t> readSome(BytesOut out) override;
+    CoroOutcome<size_t> writeSome(BytesIn in) override;
 
     outcome::result<void> close() override;
     void reset() override;
     outcome::result<bool> isInitiator() const override;
-    bool isClosed() const override;
     outcome::result<PeerId> remotePeerId() const override;
     outcome::result<Multiaddress> localMultiaddr() const override;
     outcome::result<Multiaddress> remoteMultiaddr() const override;

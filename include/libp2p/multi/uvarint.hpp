@@ -8,7 +8,7 @@
 
 #include <string>
 
-#include <boost/optional.hpp>
+#include <optional>
 
 #include <libp2p/common/types.hpp>
 
@@ -39,7 +39,7 @@ namespace libp2p::multi {
      * @param varint_bytes an array of bytes, possibly representing an unsigned
      * varint
      */
-    static boost::optional<UVarint> create(BytesIn varint_bytes);
+    static std::optional<UVarint> create(BytesIn varint_bytes);
 
     /**
      * Converts a varint back to a usual unsigned integer.

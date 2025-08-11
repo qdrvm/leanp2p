@@ -6,9 +6,9 @@
 
 #pragma once
 
-#include <boost/asio/experimental/channel.hpp>
 #include <deque>
 #include <libp2p/connection/capable_connection.hpp>
+#include <libp2p/coro/channel.hpp>
 
 namespace boost::asio {
   class io_context;
@@ -38,12 +38,8 @@ namespace libp2p::transport {
     QuicConnection(QuicConnection &&) = delete;
     void operator=(QuicConnection &&) = delete;
 
-    boost::asio::awaitable<outcome::result<size_t>> read(BytesOut out,
-                                                         size_t bytes) override;
-    boost::asio::awaitable<outcome::result<size_t>> readSome(
-        BytesOut out, size_t bytes) override;
-    boost::asio::awaitable<outcome::result<size_t>> writeSome(
-        BytesIn in, size_t bytes) override;
+    CoroOutcome<size_t> readSome(BytesOut out) override;
+    CoroOutcome<size_t> writeSome(BytesIn in) override;
 
     // Closeable
     bool isClosed() const override;
@@ -63,12 +59,10 @@ namespace libp2p::transport {
     void start() override;
     void stop() override;
     void newStream(StreamHandlerFunc cb) override;
-    boost::asio::awaitable<outcome::result<std::shared_ptr<connection::Stream>>>
-    newStreamCoroutine() override;
+    CoroOutcome<std::shared_ptr<connection::Stream>> newStreamCoroutine()
+        override;
     outcome::result<std::shared_ptr<connection::Stream>> newStream() override;
-    boost::asio::awaitable<
-        outcome::result<std::shared_ptr<connection::Stream>>>
-    acceptStream() override;
+    CoroOutcome<std::shared_ptr<connection::Stream>> acceptStream() override;
 
     void onClose();
 
@@ -81,9 +75,6 @@ namespace libp2p::transport {
     Multiaddress local_, remote_;
     PeerId local_peer_, peer_;
     crypto::PublicKey key_;
-    boost::asio::experimental::channel<void(
-        boost::system::error_code,
-        std::optional<std::shared_ptr<connection::Stream>>)>
-        stream_signal_;
+    CoroOutcomeChannel<std::shared_ptr<connection::Stream>> stream_signal_;
   };
 }  // namespace libp2p::transport

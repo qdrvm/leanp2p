@@ -13,10 +13,11 @@
 #include <string_view>
 #include <unordered_map>
 
-#include <boost/optional.hpp>
+#include <libp2p/common/std_format_as.hpp>
 #include <libp2p/common/types.hpp>
 #include <libp2p/multi/multiaddress_protocol_list.hpp>
 #include <libp2p/outcome/outcome.hpp>
+#include <optional>
 
 namespace libp2p {
   using ProtoAddrVec = std::vector<std::pair<multi::Protocol, std::string>>;
@@ -96,7 +97,7 @@ namespace libp2p::multi {
      * @return pair of addresses; if there's only one protocol in the provided
      * address, the second element will be none
      */
-    std::pair<Multiaddress, boost::optional<Multiaddress>> splitFirst() const;
+    std::pair<Multiaddress, std::optional<Multiaddress>> splitFirst() const;
 
     /**
      * @brief Tests if {@param code} exists in this multiaddr.
@@ -121,7 +122,7 @@ namespace libp2p::multi {
      * Get peer id of this Multiaddress
      * @return peer id if exists
      */
-    boost::optional<std::string> getPeerId() const;
+    std::optional<std::string> getPeerId() const;
 
     /**
      * Get all values, which are under that protocol in this multiaddress
@@ -192,7 +193,7 @@ namespace libp2p::multi {
     std::string stringified_address_;
     ByteBuffer bytes_;
 
-    boost::optional<std::string> peer_id_;
+    std::optional<std::string> peer_id_;
   };
 
   inline auto format_as(const Multiaddress &ma) {

@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <boost/asio/use_awaitable.hpp>
 #include <libp2p/transport/quic/engine.hpp>
 
 #include <boost/asio/ssl/context.hpp>
@@ -35,7 +34,7 @@ namespace libp2p::transport::lsquic {
         timer_{*io_context_},
         socket_local_{socket_.local_endpoint()},
         local_{detail::makeQuicAddr(socket_local_).value()},
-        conn_signal_{io_context_->get_executor(), 1} {
+        conn_signal_{{io_context_->get_executor(), 1}} {
     socket_.non_blocking(true);
 
     lsquicInit();
@@ -149,8 +148,8 @@ namespace libp2p::transport::lsquic {
         +[](lsquic_stream_t *stream, lsquic_stream_ctx_t *_stream_ctx) {
           // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
           auto stream_ctx = reinterpret_cast<StreamCtx *>(_stream_ctx);
-          if (auto op = qtils::optionTake(stream_ctx->reading)) {
-            op->cb(QuicError::STREAM_CLOSED);
+          if (auto reading = qtils::optionTake(stream_ctx->reading)) {
+            reading.value()();
           }
           if (auto stream = stream_ctx->stream.lock()) {
             stream->onClose();
@@ -163,14 +162,9 @@ namespace libp2p::transport::lsquic {
           lsquic_stream_wantread(stream, 0);
           // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
           auto stream_ctx = reinterpret_cast<StreamCtx *>(_stream_ctx);
-          auto op = qtils::optionTake(stream_ctx->reading).value();
-          auto n = lsquic_stream_read(stream, op.out.data(), op.out.size());
-          outcome::result<size_t> r = QuicError::STREAM_CLOSED;
-          if (n > 0) {
-            r = n;
+          if (auto reading = qtils::optionTake(stream_ctx->reading)) {
+            reading.value()();
           }
-          post(*stream_ctx->engine->io_context_,
-               [cb{std::move(op.cb)}, r] { cb(r); });
         };
 
     lsquic_engine_api api{};
@@ -240,44 +234,32 @@ namespace libp2p::transport::lsquic {
     readLoop();
   }
 
-  boost::asio::awaitable<outcome::result<std::shared_ptr<QuicConnection>>>
-  Engine::connect(const boost::asio::ip::udp::endpoint &remote,
-                  const PeerId &peer) {
-    if (connecting_) {
-      throw std::logic_error{"Engine::connect invalid state"};
-    }
-    std::optional<outcome::result<std::shared_ptr<QuicConnection>>> result;
-    bool done = false;
-    connecting_ =
-        Connecting{remote,
-                   peer,
-                   [&](outcome::result<std::shared_ptr<QuicConnection>> res) {
-                     result = std::move(res);
-                     done = true;
-                   }};
+  ConnectionPtrCoroOutcome Engine::connect(
+      const boost::asio::ip::udp::endpoint &remote, const PeerId &peer) {
     start();
-    lsquic_engine_connect(engine_,
-                          N_LSQVER,
-                          socket_local_.data(),
-                          remote.data(),
-                          this,
-                          nullptr,
-                          nullptr,
-                          0,
-                          nullptr,
-                          0,
-                          nullptr,
-                          0);
-    if (auto op = qtils::optionTake(connecting_)) {
-      op->cb(QuicError::CANT_CREATE_CONNECTION);
-      co_return QuicError::CANT_CREATE_CONNECTION;
-    }
-    process();
-    // Await until the callback sets 'done' to true
-    while (!done) {
-      co_await boost::asio::this_coro::executor;
-    }
-    co_return *result;
+    co_return co_await coroHandler<ConnectionPtrOutcome>(
+        [&](CoroHandler<ConnectionPtrOutcome> &&handler) {
+          if (connecting_) {
+            throw std::logic_error{"Engine::connect invalid state"};
+          }
+          connecting_.emplace(Connecting{remote, peer, std::move(handler)});
+          lsquic_engine_connect(engine_,
+                                N_LSQVER,
+                                socket_local_.data(),
+                                remote.data(),
+                                this,
+                                nullptr,
+                                nullptr,
+                                0,
+                                nullptr,
+                                0,
+                                nullptr,
+                                0);
+          if (auto op = qtils::optionTake(connecting_)) {
+            op->cb(QuicError::CANT_CREATE_CONNECTION);
+          }
+          wantProcess();
+        });
   }
 
   outcome::result<std::shared_ptr<connection::QuicStream>> Engine::newStream(
@@ -297,18 +279,20 @@ namespace libp2p::transport::lsquic {
     return stream;
   }
 
-  boost::asio::awaitable<outcome::result<std::shared_ptr<QuicConnection>>>
-  Engine::asyncAccept() {
-    try {
-      std::optional<std::shared_ptr<QuicConnection>> opt_conn =
-          co_await conn_signal_.async_receive(boost::asio::use_awaitable);
-      if (not opt_conn.has_value()) {
-        co_return QuicError::CANT_CREATE_CONNECTION;
-      }
-      co_return opt_conn.value();
-    } catch (const boost::system::system_error &e) {
-      co_return e.code();
+  ConnectionPtrCoroOutcome Engine::asyncAccept() {
+    co_return co_await conn_signal_.receive();
+  }
+
+  void Engine::wantProcess() {
+    if (want_process_) {
+      return;
     }
+    want_process_ = true;
+    boost::asio::post(*io_context_, [weak_self{weak_from_this()}] {
+      if (auto self = weak_self.lock()) {
+        self->process();
+      }
+    });
   }
 
   void Engine::process() {
@@ -357,7 +341,7 @@ namespace libp2p::transport::lsquic {
           socket_.async_wait(boost::asio::socket_base::wait_read,
                              std::move(cb));
         }
-        return;
+        break;
       }
       lsquic_engine_packet_in(engine_,
                               reading_.buf.data(),
@@ -366,20 +350,13 @@ namespace libp2p::transport::lsquic {
                               reading_.remote.data(),
                               this,
                               0);
-      process();
     }
+    process();
   }
 
   void Engine::onConnection(
       outcome::result<std::shared_ptr<QuicConnection>> conn) {
     // Signal waiting asyncAccept that a new connection is available
-    std::optional<std::shared_ptr<QuicConnection>> opt_conn;
-    boost::system::error_code ec{};
-    if (conn.has_value()) {
-      opt_conn = std::move(conn.value());
-    } else {
-      ec = conn.error();
-    }
-    conn_signal_.try_send(ec, opt_conn);
+    conn_signal_.send(std::move(conn));
   }
 }  // namespace libp2p::transport::lsquic

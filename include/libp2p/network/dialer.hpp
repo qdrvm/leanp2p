@@ -43,24 +43,23 @@ namespace libp2p::network {
     );
 
     // Establishes a connection to a given peer
-    boost::asio::awaitable<
-        outcome::result<std::shared_ptr<connection::CapableConnection>>>
-    dial(const PeerInfo &p);
+    CoroOutcome<std::shared_ptr<connection::CapableConnection>> dial(
+        const PeerInfo &p);
 
     /**
      * NewStream returns a new stream to given peer p.
      * If there is no connection to p, returns error.
      */
-    boost::asio::awaitable<outcome::result<std::shared_ptr<connection::Stream>>>
-    newStream(std::shared_ptr<connection::CapableConnection> conn,
-              StreamProtocols protocols);
+    CoroOutcome<std::shared_ptr<connection::Stream>> newStream(
+        std::shared_ptr<connection::CapableConnection> conn,
+        StreamProtocols protocols);
 
     /**
      * NewStream returns a new stream to given peer p.
      * If there is no connection to p, returns error.
      */
-    boost::asio::awaitable<outcome::result<std::shared_ptr<connection::Stream>>>
-    newStream(const PeerInfo &peer_id, StreamProtocols protocols);
+    CoroOutcome<std::shared_ptr<connection::Stream>> newStream(
+        const PeerInfo &peer_id, StreamProtocols protocols);
 
    private:
     // A context to handle an intermediary state of the peer we are dialing to
@@ -76,7 +75,7 @@ namespace libp2p::network {
       // std::vector<Dialer::DialResultFunc> callbacks;
 
       /// Result temporary storage to propagate via callbacks
-      boost::optional<DialResult> result;
+      std::optional<DialResult> result;
       // ^ used when all connecting attempts failed and no more known peer
       // addresses are left
 
@@ -86,9 +85,8 @@ namespace libp2p::network {
     };
 
     // Perform a single attempt to dial to the peer via the next known address
-    boost::asio::awaitable<
-        outcome::result<std::shared_ptr<connection::CapableConnection>>>
-    rotate(const peer::PeerId &peer_id);
+    CoroOutcome<std::shared_ptr<connection::CapableConnection>> rotate(
+        const peer::PeerId &peer_id);
     // Finalize dialing to the peer and propagate a given result to all
     // connection requesters
     void completeDial(const peer::PeerId &peer_id);

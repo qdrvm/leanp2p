@@ -8,7 +8,7 @@
 
 #include <string>
 
-#include <boost/optional.hpp>
+#include <optional>
 
 namespace libp2p::multi {
 

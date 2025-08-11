@@ -9,8 +9,8 @@
 #include <array>
 #include <cstring>
 
-#include <boost/optional.hpp>
 #include <libp2p/multi/multibase_codec/codecs/base_error.hpp>
+#include <optional>
 
 namespace {
   // All alphanumeric characters except for "0", "I", "O", and "l"
@@ -110,7 +110,7 @@ namespace libp2p::multi::detail {
    * @param psz - pointer to the string to be decoded
    * @return decoded bytes, if the process went successfully, none otherwise
    */
-  boost::optional<std::vector<unsigned char>> decodeImpl(const char *psz) {
+  std::optional<std::vector<unsigned char>> decodeImpl(const char *psz) {
     // Skip leading spaces.
     while ((*psz != '0') && isSpace(*psz)) {
       std::advance(psz, 1);

@@ -20,11 +20,11 @@ namespace libp2p::protocol_muxer::multiselect {
     constexpr size_t kMaxCacheSize = 8;
   }  // namespace
 
-  boost::asio::awaitable<outcome::result<peer::ProtocolName>>
-  Multiselect::selectOneOf(std::span<const peer::ProtocolName> protocols,
-                           std::shared_ptr<basic::ReadWriter> connection,
-                           bool is_initiator,
-                           bool negotiate_multistream) {
+  CoroOutcome<peer::ProtocolName> Multiselect::selectOneOf(
+      std::span<const peer::ProtocolName> protocols,
+      std::shared_ptr<basic::ReadWriter> connection,
+      bool is_initiator,
+      bool negotiate_multistream) {
     // Create instance and delegate to its coroutine implementation
     auto instance = getInstance();
 

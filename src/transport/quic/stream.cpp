@@ -5,9 +5,9 @@
  */
 
 #include <lsquic.h>
-#include <boost/asio/awaitable.hpp>
 #include <boost/asio/post.hpp>
 #include <boost/asio/use_awaitable.hpp>
+#include <libp2p/coro/coro.hpp>
 #include <libp2p/transport/quic/connection.hpp>
 #include <libp2p/transport/quic/engine.hpp>
 #include <libp2p/transport/quic/error.hpp>
@@ -27,77 +27,35 @@ namespace libp2p::connection {
     reset();
   }
 
-  template <typename T>
-  void ambigousSize(std::span<T> &s, size_t n) {
-    if (n > s.size()) {
-      throw std::logic_error{"libp2p::ambigousSize"};
-    }
-    s = s.first(n);
-  }
-
-  boost::asio::awaitable<outcome::result<size_t>> QuicStream::read(
-      BytesOut out, size_t bytes) {
-    ambigousSize(out, bytes);
+  CoroOutcome<size_t> QuicStream::readSome(BytesOut out) {
     if (not stream_ctx_) {
       co_return QuicError::STREAM_CLOSED;
     }
     if (stream_ctx_->reading) {
       co_return QuicError::STREAM_READ_IN_PROGRESS;
     }
-    auto n = lsquic_stream_read(stream_ctx_->ls_stream, out.data(), out.size());
-    if (n == -1 && errno == EWOULDBLOCK) {
-      bool done = false;
-      outcome::result<size_t> r = QuicError::STREAM_CLOSED;
-      stream_ctx_->reading.emplace(
-          transport::lsquic::StreamCtx::Reading{out, [&](auto res) {
-                                                  r = res;
-                                                  done = true;
-                                                }});
-      lsquic_stream_wantread(stream_ctx_->ls_stream, 1);
-      while (!done) {
-        co_await boost::asio::post(boost::asio::use_awaitable);
+    while (true) {
+      auto n =
+          lsquic_stream_read(stream_ctx_->ls_stream, out.data(), out.size());
+      if (n == 0) {
+        break;
       }
-      co_return r;
-    }
-    if (n > 0) {
+      if (n == -1) {
+        if (errno != EWOULDBLOCK) {
+          break;
+        }
+        co_await coroHandler<void>([&](CoroHandler<void> &&handler) {
+          stream_ctx_->reading.emplace(std::move(handler));
+          lsquic_stream_wantread(stream_ctx_->ls_stream, 1);
+        });
+        continue;
+      }
       co_return n;
     }
     co_return QuicError::STREAM_CLOSED;
   }
 
-  boost::asio::awaitable<outcome::result<size_t>> QuicStream::readSome(
-      BytesOut out, size_t bytes) {
-    ambigousSize(out, bytes);
-    if (not stream_ctx_) {
-      co_return QuicError::STREAM_CLOSED;
-    }
-    if (stream_ctx_->reading) {
-      co_return QuicError::STREAM_READ_IN_PROGRESS;
-    }
-    auto n = lsquic_stream_read(stream_ctx_->ls_stream, out.data(), out.size());
-    if (n == -1 && errno == EWOULDBLOCK) {
-      bool done = false;
-      outcome::result<size_t> r = QuicError::STREAM_CLOSED;
-      stream_ctx_->reading.emplace(
-          transport::lsquic::StreamCtx::Reading{out, [&](auto res) {
-                                                  r = res;
-                                                  done = true;
-                                                }});
-      lsquic_stream_wantread(stream_ctx_->ls_stream, 1);
-      while (!done) {
-        co_await boost::asio::post(boost::asio::use_awaitable);
-      }
-      co_return r;
-    }
-    if (n > 0) {
-      co_return n;
-    }
-    co_return QuicError::STREAM_CLOSED;
-  }
-
-  boost::asio::awaitable<outcome::result<size_t>> QuicStream::writeSome(
-      BytesIn in, size_t bytes) {
-    ambigousSize(in, bytes);
+  CoroOutcome<size_t> QuicStream::writeSome(BytesIn in) {
     outcome::result<size_t> r = QuicError::STREAM_CLOSED;
     if (not stream_ctx_) {
       co_return r;
@@ -106,7 +64,7 @@ namespace libp2p::connection {
     if (n > 0 && lsquic_stream_flush(stream_ctx_->ls_stream) == 0) {
       r = n;
     }
-    stream_ctx_->engine->process();
+    stream_ctx_->engine->wantProcess();
     co_return r;
   }
 
@@ -128,11 +86,6 @@ namespace libp2p::connection {
   outcome::result<bool> QuicStream::isInitiator() const {
     return initiator_;
   }
-
-  bool QuicStream::isClosed() const {
-    return not stream_ctx_;
-  }
-
 
   outcome::result<PeerId> QuicStream::remotePeerId() const {
     return conn_->remotePeer();

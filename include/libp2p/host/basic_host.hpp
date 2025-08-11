@@ -142,9 +142,8 @@ namespace libp2p::host {
      * @brief Initiates connection to the peer {@param peer_info}.
      * @param peer_info peer to connect.
      */
-    boost::asio::awaitable<
-        outcome::result<std::shared_ptr<connection::CapableConnection>>>
-    connect(const peer::PeerInfo &peer_info);
+    CoroOutcome<std::shared_ptr<connection::CapableConnection>> connect(
+        const peer::PeerInfo &peer_info);
 
     /**
      * Closes all connections (outbound and inbound) to given {@param peer_id}
@@ -157,8 +156,8 @@ namespace libp2p::host {
      * @param peer_info stream will be opened to this peer
      * @param protocols "speak" using first supported protocol
      */
-    boost::asio::awaitable<outcome::result<std::shared_ptr<connection::Stream>>>
-    newStream(const peer::PeerInfo &peer_info, StreamProtocols protocols);
+    CoroOutcome<std::shared_ptr<connection::Stream>> newStream(
+        const peer::PeerInfo &peer_info, StreamProtocols protocols);
 
     /**
      * @brief Open new stream to the peer {@param peer} with protocol
@@ -166,8 +165,8 @@ namespace libp2p::host {
      * @param peer stream will be opened to this peer
      * @param protocols "speak" using first supported protocol
      */
-    boost::asio::awaitable<outcome::result<std::shared_ptr<connection::Stream>>>
-    newStream(const PeerId &peer_id, StreamProtocols protocols) {
+    CoroOutcome<std::shared_ptr<connection::Stream>> newStream(
+        const PeerId &peer_id, StreamProtocols protocols) {
       co_return co_await newStream(PeerInfo{.id = peer_id},
                                    std::move(protocols));
     }

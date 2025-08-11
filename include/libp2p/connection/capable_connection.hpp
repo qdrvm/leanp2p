@@ -63,12 +63,9 @@ namespace libp2p::connection {
      * @brief Opens new stream in a coroutine manner
      * @return Awaitable result of a new Stream or error
      */
-    virtual boost::asio::awaitable<outcome::result<std::shared_ptr<Stream>>>
-    newStreamCoroutine() = 0;
+    virtual CoroOutcome<std::shared_ptr<Stream>> newStreamCoroutine() = 0;
 
-    virtual boost::asio::awaitable<
-        outcome::result<std::shared_ptr<connection::Stream>>>
-    acceptStream() = 0;
+    virtual CoroOutcome<std::shared_ptr<connection::Stream>> acceptStream() = 0;
   };
 
 }  // namespace libp2p::connection
