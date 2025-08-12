@@ -27,10 +27,12 @@
 #include <libp2p/injector/host_injector.hpp>
 #include <libp2p/log/simple.hpp>
 #include <libp2p/network/dialer.hpp>
-#include <libp2p/protocol/echo/echo.hpp>
 #include <libp2p/transport/quic/transport.hpp>
 #include <qtils/bytestr.hpp>
 #include <soralog/logging_system.hpp>
+
+// Include the base protocol header
+#include <libp2p/protocol/base_protocol.hpp>
 
 // Internal wrapper structures
 struct libp2p_context {
@@ -69,6 +71,40 @@ struct libp2p_peer_id {
 
   libp2p_peer_id(libp2p::PeerId id, std::string s)
       : peer_id(std::move(id)), peer_id_str(std::move(s)) {}
+};
+
+// Generic protocol handler that bridges C++ protocol interface to C callbacks
+class GenericProtocolHandler : public libp2p::protocol::BaseProtocol {
+ public:
+  GenericProtocolHandler(std::string protocol_id,
+                        libp2p_stream_handler_t handler,
+                        void *user_data,
+                        libp2p_host_t *host_wrapper)
+      : protocol_id_(std::move(protocol_id)),
+        handler_(handler),
+        user_data_(user_data),
+        host_wrapper_(host_wrapper) {}
+
+  [[nodiscard]] std::string getProtocolId() const override { return protocol_id_; }
+
+  // Override the handle method from BaseProtocol
+  void handle(std::shared_ptr<libp2p::connection::Stream> stream) override {
+    if (handler_) {
+      // Create a stream wrapper for the C API
+      auto stream_wrapper = new libp2p_stream_t();
+      stream_wrapper->stream = stream;
+      stream_wrapper->host = host_wrapper_;
+
+      // Call the C callback
+      handler_(stream_wrapper, user_data_);
+    }
+  }
+
+ private:
+  std::string protocol_id_;
+  libp2p_stream_handler_t handler_;
+  void *user_data_;
+  libp2p_host_t *host_wrapper_;
 };
 
 // Helper function to convert C++ errors to C error codes
@@ -251,19 +287,13 @@ libp2p_error_t libp2p_host_register_protocol(libp2p_host_t *host,
     // Store the C callback for later use
     host->protocol_handlers[protocol_id] = {handler, user_data};
 
-    // For now, we'll use the existing Echo protocol if the protocol_id matches
-    if (std::string(protocol_id) == "/echo/1.0.0") {
-      // Create an Echo protocol instance that will handle the streams
-      auto echo_protocol =
-          std::make_shared<libp2p::protocol::Echo>(host->context->io_context);
+    // Create a generic protocol handler that bridges C++ to C callbacks
+    auto protocol_handler = std::make_shared<GenericProtocolHandler>(
+        protocol_id, handler, user_data, host);
 
-      if (!host->host->listenProtocol(protocol_id, echo_protocol)) {
-        return LIBP2P_ERROR_PROTOCOL_ERROR;
-      }
-    } else {
-      // For other protocols, we need a different approach
-      // This is a simplified implementation - in a real system we'd need
-      // a proper protocol handler factory
+    // Register the protocol with the host - now passing the protocol handler directly
+    auto result = host->host->listenProtocol(protocol_id, protocol_handler);
+    if (!result) {
       return LIBP2P_ERROR_PROTOCOL_ERROR;
     }
 

@@ -12,4 +12,11 @@ target_link_libraries(p2p_tls
     Boost::boost
     p2p_crypto_error
     p2p_logger
+    p2p_peer_id
+    p2p_identity_manager
+    p2p_key_marshaller
+    p2p_ecdsa_provider
+    p2p_ed25519_provider
+    OpenSSL::SSL
+    OpenSSL::Crypto
     )

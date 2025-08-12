@@ -41,6 +41,7 @@ add_library(p2p_identity_manager
 )
 target_link_libraries(p2p_identity_manager
     p2p_peer_id
+    p2p_key_marshaller
 )
 
 add_library(p2p_peer_repository

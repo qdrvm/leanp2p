@@ -1,4 +1,4 @@
-add_library(libp2p_c
+add_library(libp2p_c SHARED
     libp2p_c.cpp
 )
 
@@ -9,32 +9,19 @@ target_include_directories(libp2p_c
 
 target_link_libraries(libp2p_c
     PUBLIC
-        Boost::Boost.DI
-        p2p_basic_host
-        p2p_peer_repository
-        p2p_inmem_address_repository
-        p2p_inmem_key_repository
-        p2p_quic
-        p2p_inmem_protocol_repository
-        p2p_read_buffer
-        p2p_protocol_echo
-        p2p_literals
-        p2p_varint_prefix_reader
-        p2p_converters
-        p2p_dialer
-        p2p_crypto_provider
-        p2p_connection_manager
-        p2p_transport_manager
-        p2p_listener_manager
-        p2p_identity_manager
-        p2p_key_marshaller
-        p2p_key_validator
-        p2p_crypto_error
-        p2p_peer_errors
-        p2p_logger
-        p2p_peer_id
-        p2p_multiaddress
-        p2p_byteutil
-        Boost::boost
-        fmt::fmt
+        libp2p
 )
+
+# Set library properties for shared library
+set_target_properties(libp2p_c PROPERTIES
+    VERSION 1.0.0
+    SOVERSION 1
+    OUTPUT_NAME "p2p_c"
+)
+
+# Export symbols for shared library on Windows
+if(WIN32)
+    set_target_properties(libp2p_c PROPERTIES
+        WINDOWS_EXPORT_ALL_SYMBOLS ON
+    )
+endif()
