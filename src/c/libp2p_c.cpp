@@ -12,6 +12,7 @@
 #include <functional>
 #include <cstdio>
 #include <cstdint>
+#include <cstring>
 #include <optional>
 
 #include <boost/asio/io_context.hpp>
@@ -250,12 +251,11 @@ libp2p_error_t libp2p_stream_read(libp2p_stream_t* stream, uint8_t* buffer, size
         libp2p::coroSpawn(*stream->host->context->io_context,
             [stream, buffer, buffer_size, callback, user_data]() -> libp2p::Coro<void> {
                 std::span<uint8_t> buffer_span{buffer, buffer_size};
-                auto result = co_await libp2p::read(stream->stream, buffer_span);
-                if (result.has_value()) {
-                    // The read operation fills the buffer, return the buffer size as bytes read
-                    callback(stream, buffer, buffer_size, LIBP2P_SUCCESS, user_data);
+                auto n_res = co_await stream->stream->readSome(buffer_span);
+                if (n_res.has_value()) {
+                    callback(stream, buffer, n_res.value(), LIBP2P_SUCCESS, user_data);
                 } else {
-                    callback(stream, nullptr, 0, convert_error(result.error()), user_data);
+                    callback(stream, nullptr, 0, convert_error(n_res.error()), user_data);
                 }
             });
         return LIBP2P_SUCCESS;
@@ -307,18 +307,28 @@ bool libp2p_stream_is_closed(libp2p_stream_t* stream) {
 // Connection management implementation
 libp2p_error_t libp2p_host_dial(libp2p_host_t* host, const char* multiaddr_str, const char* peer_id_str,
                                  libp2p_connection_handler_t callback, void* user_data) {
-    if (!host || !host->host || !multiaddr_str || !callback) return LIBP2P_ERROR_INVALID_ARGUMENT;
+    if (!host || !host->host || !multiaddr_str || !callback || !peer_id_str || std::strlen(peer_id_str) == 0) {
+        return LIBP2P_ERROR_INVALID_ARGUMENT;
+    }
 
     try {
         auto addr_result = libp2p::Multiaddress::create(multiaddr_str);
         if (!addr_result.has_value()) return LIBP2P_ERROR_INVALID_ARGUMENT;
 
-        // Use the dialer interface instead of direct host dial
+        // Parse PeerId
+        auto pid_res = libp2p::PeerId::fromBase58(peer_id_str);
+        if (!pid_res.has_value()) return LIBP2P_ERROR_INVALID_ARGUMENT;
+
+        // Build PeerInfo aggregate (PeerId is non-default-constructible)
+        libp2p::peer::PeerInfo peer_info{pid_res.value(), {addr_result.value()}};
+
+        // Try to connect asynchronously; on success, call callback
         libp2p::coroSpawn(*host->context->io_context,
-            [host, multiaddr_str, peer_id_str, callback, user_data]() -> libp2p::Coro<void> {
-                // For now, just call the callback to indicate connection attempt
-                std::string peer_id = peer_id_str ? peer_id_str : "unknown";
-                callback(host, peer_id.c_str(), user_data);
+            [host, peer_info = std::move(peer_info), callback, user_data]() mutable -> libp2p::Coro<void> {
+                std::ignore = co_await host->host->connect(peer_info);
+                // Always report the requested peer id
+                const std::string pid_str = peer_info.id.toBase58();
+                callback(host, pid_str.c_str(), user_data);
             });
         return LIBP2P_SUCCESS;
     } catch (...) {

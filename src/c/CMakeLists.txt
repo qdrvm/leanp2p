@@ -1,25 +1,3 @@
-add_library(libp2p_c_simple
-    libp2p_c_simple.cpp
-)
-
-target_include_directories(libp2p_c_simple
-    PUBLIC
-        ${CMAKE_SOURCE_DIR}/include
-)
-
-target_link_libraries(libp2p_c_simple
-    PUBLIC
-        p2p_basic_host
-        p2p_protocol_echo
-        p2p_logger
-        p2p_multiaddress
-        p2p_converters
-        p2p_byteutil
-        Boost::boost
-        fmt::fmt
-)
-
-# Keep the old complex C API for reference but don't build it by default
 add_library(libp2p_c
     libp2p_c.cpp
 )
