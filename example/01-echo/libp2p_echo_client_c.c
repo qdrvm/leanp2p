@@ -6,12 +6,12 @@
  *     "/ip4/127.0.0.1/udp/12345/quic-v1/p2p/<peer-id>" [message]
  */
 
+#include <signal.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <signal.h>
 #include <unistd.h>
-#include <stdint.h>
 
 #include <libp2p/c/libp2p_c.h>
 
@@ -24,12 +24,16 @@ typedef struct {
   uint8_t read_buffer[1024];
 } client_state_t;
 
-static void on_read_complete(libp2p_stream_t *stream, const uint8_t *data,
-                             size_t size, libp2p_error_t error,
+static void on_read_complete(libp2p_stream_t *stream,
+                             const uint8_t *data,
+                             size_t size,
+                             libp2p_error_t error,
                              void *user_data);
 
-static void on_write_complete(libp2p_stream_t *stream, size_t bytes_written,
-                              libp2p_error_t error, void *user_data) {
+static void on_write_complete(libp2p_stream_t *stream,
+                              size_t bytes_written,
+                              libp2p_error_t error,
+                              void *user_data) {
   client_state_t *state = (client_state_t *)user_data;
   if (error != LIBP2P_SUCCESS) {
     printf("Write failed: %s\n", libp2p_error_string(error));
@@ -40,9 +44,11 @@ static void on_write_complete(libp2p_stream_t *stream, size_t bytes_written,
   }
 
   printf("Sent %zu bytes, waiting for echo...\n", bytes_written);
-  libp2p_error_t r = libp2p_stream_read(stream, state->read_buffer,
+  libp2p_error_t r = libp2p_stream_read(stream,
+                                        state->read_buffer,
                                         sizeof(state->read_buffer),
-                                        on_read_complete, state);
+                                        on_read_complete,
+                                        state);
   if (r != LIBP2P_SUCCESS) {
     printf("Failed to initiate read: %s\n", libp2p_error_string(r));
     libp2p_stream_close(stream);
@@ -52,8 +58,10 @@ static void on_write_complete(libp2p_stream_t *stream, size_t bytes_written,
   }
 }
 
-static void on_read_complete(libp2p_stream_t *stream, const uint8_t *data,
-                             size_t size, libp2p_error_t error,
+static void on_read_complete(libp2p_stream_t *stream,
+                             const uint8_t *data,
+                             size_t size,
+                             libp2p_error_t error,
                              void *user_data) {
   client_state_t *state = (client_state_t *)user_data;
   if (error != LIBP2P_SUCCESS) {
@@ -68,9 +76,8 @@ static void on_read_complete(libp2p_stream_t *stream, const uint8_t *data,
 
   printf("Received %zu bytes: ", size);
   if (size > 0) {
-    size_t print_size = size < sizeof(state->read_buffer)
-                            ? size
-                            : sizeof(state->read_buffer);
+    size_t print_size =
+        size < sizeof(state->read_buffer) ? size : sizeof(state->read_buffer);
     fwrite(data, 1, print_size, stdout);
   }
   printf("\n");
@@ -93,8 +100,8 @@ static void on_stream_open(libp2p_stream_t *stream, void *user_data) {
   size_t len = strlen(state->message);
 
   printf("Opened echo stream, sending message: %s\n", state->message);
-  libp2p_error_t w = libp2p_stream_write(stream, bytes, len,
-                                         on_write_complete, state);
+  libp2p_error_t w =
+      libp2p_stream_write(stream, bytes, len, on_write_complete, state);
   if (w != LIBP2P_SUCCESS) {
     printf("Failed to initiate write: %s\n", libp2p_error_string(w));
     libp2p_stream_close(stream);
@@ -103,12 +110,13 @@ static void on_stream_open(libp2p_stream_t *stream, void *user_data) {
   }
 }
 
-static void on_connected(libp2p_host_t *host, const char *peer_id,
+static void on_connected(libp2p_host_t *host,
+                         const char *peer_id,
                          void *user_data) {
-  (void)peer_id; // info only
+  (void)peer_id;  // info only
   printf("Connected callback fired, opening echo stream...\n");
-  libp2p_error_t r = libp2p_host_new_stream(host, peer_id, "/echo/1.0.0",
-                                            on_stream_open, user_data);
+  libp2p_error_t r = libp2p_host_new_stream(
+      host, peer_id, "/echo/1.0.0", on_stream_open, user_data);
   if (r != LIBP2P_SUCCESS) {
     printf("Failed to request new stream: %s\n", libp2p_error_string(r));
     libp2p_context_stop(g_context);
@@ -127,16 +135,24 @@ static void signal_handler(int sig) {
 // Extract base multiaddress and peer id from a string like
 //   "/ip4/127.0.0.1/udp/12345/quic-v1/p2p/<peerid>"
 // Returns 0 on success, -1 on failure.
-static int split_multiaddr_peer(const char *full, char *addr_out,
-                                size_t addr_out_sz, char *peer_out,
+static int split_multiaddr_peer(const char *full,
+                                char *addr_out,
+                                size_t addr_out_sz,
+                                char *peer_out,
                                 size_t peer_out_sz) {
   const char *tag = "/p2p/";
   const char *p = strstr(full, tag);
-  if (!p) return -1;
+  if (!p) {
+    return -1;
+  }
   size_t addr_len = (size_t)(p - full);
   size_t peer_len = strlen(p + strlen(tag));
-  if (addr_len + 1 > addr_out_sz) return -1;
-  if (peer_len + 1 > peer_out_sz) return -1;
+  if (addr_len + 1 > addr_out_sz) {
+    return -1;
+  }
+  if (peer_len + 1 > peer_out_sz) {
+    return -1;
+  }
   memcpy(addr_out, full, addr_len);
   addr_out[addr_len] = '\0';
   memcpy(peer_out, p + strlen(tag), peer_len + 1);
@@ -153,8 +169,10 @@ int main(int argc, char *argv[]) {
   printf("==========================\n");
 
   if (argc < 2) {
-    printf("Usage: %s \"/ip4/127.0.0.1/udp/<port>/quic-v1/p2p/<peer-id>\" [message]\n",
-           argv[0]);
+    printf(
+        "Usage: %s \"/ip4/127.0.0.1/udp/<port>/quic-v1/p2p/<peer-id>\" "
+        "[message]\n",
+        argv[0]);
     return 2;
   }
 
@@ -196,8 +214,9 @@ int main(int argc, char *argv[]) {
 
   char base_addr[512];
   char peer_id[256];
-  if (split_multiaddr_peer(connect_full, base_addr, sizeof(base_addr), peer_id,
-                           sizeof(peer_id)) != 0) {
+  if (split_multiaddr_peer(
+          connect_full, base_addr, sizeof(base_addr), peer_id, sizeof(peer_id))
+      != 0) {
     printf("Invalid connect address, expected .../p2p/<peer-id>\n");
     libp2p_host_destroy(host);
     libp2p_context_destroy(g_context);
@@ -206,8 +225,8 @@ int main(int argc, char *argv[]) {
   }
 
   printf("Dialing %s (peer %s) ...\n", base_addr, peer_id);
-  libp2p_error_t d = libp2p_host_dial(host, base_addr, peer_id, on_connected,
-                                      state);
+  libp2p_error_t d =
+      libp2p_host_dial(host, base_addr, peer_id, on_connected, state);
   if (d != LIBP2P_SUCCESS) {
     printf("Dial initiation failed: %s\n", libp2p_error_string(d));
     libp2p_host_destroy(host);
