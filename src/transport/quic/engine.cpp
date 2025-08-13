@@ -296,6 +296,7 @@ namespace libp2p::transport::lsquic {
   }
 
   void Engine::process() {
+    want_process_ = false;
     lsquic_engine_process_conns(engine_);
     int us = 0;
     if (not lsquic_engine_earliest_adv_tick(engine_, &us)) {
