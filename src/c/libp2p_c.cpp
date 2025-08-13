@@ -37,7 +37,6 @@
 // Internal wrapper structures
 struct libp2p_context {
   std::shared_ptr<boost::asio::io_context> io_context;
-  std::unique_ptr<boost::asio::signal_set> signals;
   std::unique_ptr<
       boost::asio::executor_work_guard<boost::asio::io_context::executor_type>>
       work_guard;
@@ -77,27 +76,28 @@ struct libp2p_peer_id {
 class GenericProtocolHandler : public libp2p::protocol::BaseProtocol {
  public:
   GenericProtocolHandler(std::string protocol_id,
-                        libp2p_stream_handler_t handler,
-                        void *user_data,
-                        libp2p_host_t *host_wrapper)
+                         libp2p_stream_handler_t handler,
+                         void *user_data,
+                         libp2p_host_t *host_wrapper)
       : protocol_id_(std::move(protocol_id)),
         handler_(handler),
         user_data_(user_data),
         host_wrapper_(host_wrapper) {}
 
-  [[nodiscard]] std::string getProtocolId() const override { return protocol_id_; }
+  [[nodiscard]] std::string getProtocolId() const override {
+    return protocol_id_;
+  }
 
   // Override the handle method from BaseProtocol
   void handle(std::shared_ptr<libp2p::connection::Stream> stream) override {
-    if (handler_) {
-      // Create a stream wrapper for the C API
-      auto stream_wrapper = new libp2p_stream_t();
-      stream_wrapper->stream = stream;
-      stream_wrapper->host = host_wrapper_;
+    assert(handler_ && "Handler cannot be null");
+    // Create a stream wrapper for the C API
+    auto stream_wrapper = new libp2p_stream_t();
+    stream_wrapper->stream = stream;
+    stream_wrapper->host = host_wrapper_;
 
-      // Call the C callback
-      handler_(stream_wrapper, user_data_);
-    }
+    // Call the C callback
+    handler_(stream_wrapper, user_data_);
   }
 
  private:
@@ -121,8 +121,6 @@ libp2p_context_t *libp2p_context_create() {
   try {
     auto ctx = new libp2p_context_t();
     ctx->io_context = std::make_shared<boost::asio::io_context>();
-    ctx->signals = std::make_unique<boost::asio::signal_set>(
-        *ctx->io_context, SIGINT, SIGTERM);
     ctx->work_guard = std::make_unique<boost::asio::executor_work_guard<
         boost::asio::io_context::executor_type>>(
         boost::asio::make_work_guard(*ctx->io_context));
@@ -175,64 +173,46 @@ libp2p_host_t *libp2p_host_create(libp2p_context_t *ctx,
   }
 
   libp2p_host_t *host_wrapper = nullptr;
-  try {
-    // Ensure logging system initialized once
-    static bool logging_inited = false;
-    if (!logging_inited) {
-      libp2p::simpleLoggingSystem();
-      logging_inited = true;
-    }
-    host_wrapper = new libp2p_host_t();
-    host_wrapper->context = ctx;
-
-    // Derive deterministic index from seed
-    uint32_t index = 0;
-    // if (keypair_seed) {
-    //     index =
-    //     static_cast<uint32_t>(std::hash<std::string>{}(keypair_seed));
-    // }
-    libp2p::SamplePeer sample_peer{index % 1000};  // keep port reasonable
-
-    auto injector = libp2p::injector::makeHostInjector(
-        libp2p::injector::useKeyPair(sample_peer.keypair),
-        libp2p::injector::useTransportAdaptors<
-            libp2p::transport::QuicTransport>());
-
-    // Clean up objects tied to old io_context BEFORE replacing it
-    if (ctx->work_guard) {
-      ctx->work_guard
-          .reset();  // destroys guard while old io_context still alive
-    }
-    if (ctx->signals) {
-      ctx->signals.reset();
-    }
-
-    // Obtain injector's io_context so libp2p_context_run drives host internals
-    auto injected_io =
-        injector.create<std::shared_ptr<boost::asio::io_context>>();
-    ctx->io_context = injected_io;  // overwrite after old guard/signals reset
-
-    // Recreate signal set & work guard on new io_context
-    ctx->signals = std::make_unique<boost::asio::signal_set>(
-        *ctx->io_context, SIGINT, SIGTERM);
-    ctx->work_guard = std::make_unique<boost::asio::executor_work_guard<
-        boost::asio::io_context::executor_type>>(
-        boost::asio::make_work_guard(*ctx->io_context));
-
-    auto host = injector.create<std::shared_ptr<libp2p::host::BasicHost>>();
-    host_wrapper->host = host;
-    host_wrapper->peer_id = sample_peer.peer_id;
-
-    return host_wrapper;
-  } catch (const std::exception &e) {
-    fprintf(stderr, "libp2p_host_create exception: %s\n", e.what());
-    delete host_wrapper;
-    return nullptr;
-  } catch (...) {
-    fprintf(stderr, "libp2p_host_create unknown exception\n");
-    delete host_wrapper;
-    return nullptr;
+  // Ensure logging system initialized once
+  static bool logging_inited = false;
+  if (!logging_inited) {
+    libp2p::simpleLoggingSystem();
+    logging_inited = true;
   }
+  host_wrapper = new libp2p_host_t();
+  host_wrapper->context = ctx;
+
+  // Derive deterministic index from seed
+  uint32_t index = 0;
+  // if (keypair_seed) {
+  //   index = static_cast<uint32_t>(std::hash<std::string>{}(keypair_seed));
+  // }
+  libp2p::SamplePeer sample_peer{index % 1000};  // keep port reasonable
+
+  auto injector = libp2p::injector::makeHostInjector(
+      libp2p::injector::useKeyPair(sample_peer.keypair),
+      libp2p::injector::useTransportAdaptors<
+          libp2p::transport::QuicTransport>());
+
+  // Clean up objects tied to old io_context BEFORE replacing it
+  if (ctx->work_guard) {
+    ctx->work_guard.reset();
+  }
+
+  // Obtain injector's io_context so libp2p_context_run drives host internals
+  auto injected_io =
+      injector.create<std::shared_ptr<boost::asio::io_context>>();
+  ctx->io_context = injected_io;  // overwrite after old guard/signals reset
+
+  ctx->work_guard = std::make_unique<
+      boost::asio::executor_work_guard<boost::asio::io_context::executor_type>>(
+      boost::asio::make_work_guard(*ctx->io_context));
+
+  auto host = injector.create<std::shared_ptr<libp2p::host::BasicHost>>();
+  host_wrapper->host = host;
+  host_wrapper->peer_id = sample_peer.peer_id;
+
+  return host_wrapper;
 }
 
 void libp2p_host_destroy(libp2p_host_t *host) {
@@ -291,7 +271,8 @@ libp2p_error_t libp2p_host_register_protocol(libp2p_host_t *host,
     auto protocol_handler = std::make_shared<GenericProtocolHandler>(
         protocol_id, handler, user_data, host);
 
-    // Register the protocol with the host - now passing the protocol handler directly
+    // Register the protocol with the host - now passing the protocol handler
+    // directly
     auto result = host->host->listenProtocol(protocol_id, protocol_handler);
     if (!result) {
       return LIBP2P_ERROR_PROTOCOL_ERROR;
@@ -558,13 +539,17 @@ void libp2p_set_log_level(libp2p_log_level_t level) {
   (void)level;  // Suppress unused parameter warning
 }
 
-const char *libp2p_host_peer_id(libp2p_host_t *host) {
+libp2p_peer_id_t *libp2p_host_peer_id(libp2p_host_t *host) {
   if (!host || !host->host || !host->peer_id.has_value()) {
     return nullptr;
   }
-  static thread_local std::string id;
-  id = host->peer_id->toBase58();
-  return id.c_str();
+
+  try {
+    std::string id_str = host->peer_id->toBase58();
+    return new libp2p_peer_id_t(host->peer_id.value(), std::move(id_str));
+  } catch (...) {
+    return nullptr;
+  }
 }
 
 const char *libp2p_host_default_listen(libp2p_host_t *host) {

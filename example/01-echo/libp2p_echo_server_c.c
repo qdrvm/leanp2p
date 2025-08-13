@@ -5,13 +5,13 @@
  * receives
  */
 
+#include <errno.h>
+#include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <pthread.h>
-#include <errno.h>
 
 #include <libp2p/c/libp2p_c.h>
 
@@ -21,7 +21,7 @@ static volatile sig_atomic_t should_stop = 0;
 static pthread_t signal_thread;
 
 // Signal monitoring thread function
-void* signal_monitor_thread(void* arg) {
+void *signal_monitor_thread(void *arg) {
   sigset_t sigset;
   int sig;
 
@@ -229,8 +229,10 @@ int main(int argc, char *argv[]) {
 
   printf("Echo server started successfully\n");
   const char *resolved_listen = listen_addr;
-  const char *peer_id_str = libp2p_host_peer_id(host);
-  if (peer_id_str) {
+  libp2p_peer_id_t *peer_id_obj = libp2p_host_peer_id(host);
+  const char *peer_id_str = NULL;
+  if (peer_id_obj) {
+    peer_id_str = libp2p_peer_id_to_string(peer_id_obj);
     printf("Peer ID: %s\n", peer_id_str);
   }
   const char *default_listen = libp2p_host_default_listen(host);
@@ -253,6 +255,9 @@ int main(int argc, char *argv[]) {
 
   // Cleanup
   printf("Shutting down...\n");
+  if (peer_id_obj) {
+    libp2p_peer_id_destroy(peer_id_obj);
+  }
   libp2p_host_destroy(host);
   libp2p_context_destroy(g_context);
 

@@ -218,13 +218,14 @@ pub fn main() !void {
         resolved_listen = z;
     }
 
-    if (c.libp2p_host_peer_id(host)) |peer_id_c| {
-        if (cstrOrNull(peer_id_c)) |peer_id| {
-            std.debug.print("Peer ID: {s}\n", .{peer_id});
-        }
-        std.debug.print("Listening on: {s}\n", .{resolved_listen});
-        if (cstrOrNull(peer_id_c)) |peer_id| {
-            std.debug.print("Full multiaddr: {s}/p2p/{s}\n", .{ resolved_listen, peer_id });
+    if (c.libp2p_host_peer_id(host)) |peer_id_obj| {
+        defer c.libp2p_peer_id_destroy(peer_id_obj);
+        if (c.libp2p_peer_id_to_string(peer_id_obj)) |peer_id_c| {
+            if (cstrOrNull(peer_id_c)) |peer_id| {
+                std.debug.print("Peer ID: {s}\n", .{peer_id});
+                std.debug.print("Listening on: {s}\n", .{resolved_listen});
+                std.debug.print("Full multiaddr: {s}/p2p/{s}\n", .{ resolved_listen, peer_id });
+            }
         }
     } else {
         std.debug.print("Listening on: {s}\n", .{resolved_listen});
