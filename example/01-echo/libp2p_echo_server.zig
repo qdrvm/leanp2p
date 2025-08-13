@@ -2,11 +2,13 @@ const std = @import("std");
 
 const c = @cImport({
     @cInclude("signal.h");
+    @cInclude("pthread.h");
     @cInclude("libp2p/c/libp2p_c.h");
 });
 
 // Global context for signal handling
 var g_context: ?*c.libp2p_context_t = null;
+var should_stop: std.atomic.Value(bool) = std.atomic.Value(bool).init(false);
 
 // State stored per-connection
 const EchoState = extern struct {
@@ -20,12 +22,31 @@ fn cstrOrNull(p: [*c]const u8) ?[]const u8 {
     return std.mem.span(z);
 }
 
-// Signal handler: stop the context to gracefully shutdown
-export fn sig_handler(sig: c_int) callconv(.C) void {
-    _ = sig; // unused
-    if (g_context) |ctx| {
-        c.libp2p_context_stop(ctx);
+// Signal monitoring thread function (for SIGINT/SIGTERM)
+// This thread will block until it receives a signal, then stop the libp2p context
+// and set the should_stop flag to true.
+// This allows the main thread to exit gracefully.
+fn signalMonitorThread(arg: ?*anyopaque) callconv(.C) ?*anyopaque {
+    _ = arg;
+
+    var sigset: c.sigset_t = undefined;
+    var sig: c_int = undefined;
+
+    // Wait for SIGINT or SIGTERM
+    _ = c.sigemptyset(&sigset);
+    _ = c.sigaddset(&sigset, c.SIGINT);
+    _ = c.sigaddset(&sigset, c.SIGTERM);
+
+    // Block until we receive one of these signals
+    if (c.sigwait(&sigset, &sig) == 0) {
+        std.debug.print("\nReceived signal {d}, shutting down...\n", .{sig});
+        should_stop.store(true, .release);
+        if (g_context) |ctx| {
+            c.libp2p_context_stop(ctx);
+        }
     }
+
+    return null;
 }
 
 // Forward declarations (not required in Zig; only keep definitions below)
@@ -110,9 +131,19 @@ export fn echo_protocol_handler(stream: ?*c.libp2p_stream_t, user_data: ?*anyopa
 pub fn main() !void {
     const gpa = std.heap.c_allocator; // use C allocator for C interop strings
 
-    // Setup signal handlers
-    _ = c.signal(c.SIGINT, sig_handler);
-    _ = c.signal(c.SIGTERM, sig_handler);
+    // Block signals in the main thread so only the signal monitoring thread receives them
+    var sigset: c.sigset_t = undefined;
+    _ = c.sigemptyset(&sigset);
+    _ = c.sigaddset(&sigset, c.SIGINT);
+    _ = c.sigaddset(&sigset, c.SIGTERM);
+    _ = c.pthread_sigmask(c.SIG_BLOCK, &sigset, null);
+
+    // Create the signal monitoring thread
+    var sig_thread: c.pthread_t = undefined;
+    if (c.pthread_create(&sig_thread, null, signalMonitorThread, null) != 0) {
+        std.debug.print("Failed to create signal monitoring thread\n", .{});
+        return;
+    }
 
     // Set logging level
     c.libp2p_set_log_level(c.LIBP2P_LOG_INFO);
@@ -211,6 +242,9 @@ pub fn main() !void {
     c.libp2p_host_destroy(host);
     c.libp2p_context_destroy(g_context.?);
     g_context = null;
+
+    // Wait for the signal monitoring thread to finish
+    _ = c.pthread_join(sig_thread, null);
 
     std.debug.print("Echo server stopped\n", .{});
 }
