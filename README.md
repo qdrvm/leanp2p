@@ -1,6 +1,6 @@
 # leanp2p
 
-A lean, modern C++23 take on core libp2p building blocks with a small, focused example. It uses Boost.Asio coroutines, DI via Boost.DI, QUIC transport via lsquic, logging via soralog, and crypto (secp256k1, OpenSSL), all managed through vcpkg.
+A lean, modern C++23 take on core libp2p building blocks with a small, focused example. It uses Boost.Asio coroutines, DI via Boost.DI, QUIC transport via lsquic, logging via soralog, and crypto (secp256k1, OpenSSL), all managed through vcpkg. It also provides C bindings (`libp2p_c`) so you can use it from C and other languages like Zig; see `example/01-echo` for C and Zig samples.
 
 ## Features
 
