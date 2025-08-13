@@ -10,18 +10,36 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <pthread.h>
+#include <errno.h>
 
 #include <libp2p/c/libp2p_c.h>
 
 // Global context for signal handling
 static libp2p_context_t *g_context = NULL;
+static volatile sig_atomic_t should_stop = 0;
+static pthread_t signal_thread;
 
-// Signal handler for graceful shutdown
-void signal_handler(int sig) {
-  printf("\nReceived signal %d, shutting down...\n", sig);
-  if (g_context) {
-    libp2p_context_stop(g_context);
+// Signal monitoring thread function
+void* signal_monitor_thread(void* arg) {
+  sigset_t sigset;
+  int sig;
+
+  // Wait for SIGINT or SIGTERM
+  sigemptyset(&sigset);
+  sigaddset(&sigset, SIGINT);
+  sigaddset(&sigset, SIGTERM);
+
+  // Block until we receive one of these signals
+  if (sigwait(&sigset, &sig) == 0) {
+    printf("\nReceived signal %d, shutting down...\n", sig);
+    should_stop = 1;
+    if (g_context) {
+      libp2p_context_stop(g_context);
+    }
   }
+
+  return NULL;
 }
 
 // Echo protocol handler state
@@ -138,9 +156,18 @@ void echo_protocol_handler(libp2p_stream_t *stream, void *user_data) {
 }
 
 int main(int argc, char *argv[]) {
-  // Set up signal handlers for graceful shutdown
-  signal(SIGINT, signal_handler);
-  signal(SIGTERM, signal_handler);
+  // Set up signal mask for this thread
+  sigset_t sigset;
+  sigemptyset(&sigset);
+  sigaddset(&sigset, SIGINT);
+  sigaddset(&sigset, SIGTERM);
+  pthread_sigmask(SIG_BLOCK, &sigset, NULL);
+
+  // Create the signal monitoring thread
+  if (pthread_create(&signal_thread, NULL, signal_monitor_thread, NULL) != 0) {
+    perror("pthread_create");
+    return 1;
+  }
 
   // Set logging level
   libp2p_set_log_level(LIBP2P_LOG_INFO);
@@ -218,7 +245,7 @@ int main(int argc, char *argv[]) {
   printf("Press Ctrl+C to stop the server\n");
   printf("\n");
 
-  // Run the event loop
+  // Run the event loop - the signal handler should interrupt it
   result = libp2p_context_run(g_context);
   if (result != LIBP2P_SUCCESS) {
     printf("Context run failed: %s\n", libp2p_error_string(result));
@@ -228,6 +255,9 @@ int main(int argc, char *argv[]) {
   printf("Shutting down...\n");
   libp2p_host_destroy(host);
   libp2p_context_destroy(g_context);
+
+  // Wait for the signal thread to finish
+  pthread_join(signal_thread, NULL);
 
   printf("Echo server stopped\n");
   return 0;
