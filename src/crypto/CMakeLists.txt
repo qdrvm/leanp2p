@@ -29,6 +29,8 @@ add_library(p2p_crypto_common
 )
 target_link_libraries(p2p_crypto_common
     p2p_crypto_error
+    OpenSSL::SSL
+    OpenSSL::Crypto
 )
 
 add_library(p2p_key_marshaller

@@ -14,4 +14,5 @@ add_library(p2p_multibase_codec
     )
 target_link_libraries(p2p_multibase_codec
     Boost::boost
+    fmt::fmt
     )
