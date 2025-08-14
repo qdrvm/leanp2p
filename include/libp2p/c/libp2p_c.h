@@ -44,9 +44,9 @@
 extern "C" {
 #endif
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdbool.h>
 
 /**
  * @defgroup opaque_types Opaque Types
@@ -72,7 +72,7 @@ typedef struct libp2p_peer_id libp2p_peer_id_t;
 /** @brief Opaque type representing the libp2p execution context */
 typedef struct libp2p_context libp2p_context_t;
 
-/** @} */ // end of opaque_types group
+/** @} */  // end of opaque_types group
 
 /**
  * @defgroup error_codes Error Codes
@@ -87,19 +87,19 @@ typedef struct libp2p_context libp2p_context_t;
  * LIBP2P_SUCCESS (0) indicates successful operation.
  */
 typedef enum {
-    LIBP2P_SUCCESS = 0,                    /**< Operation completed successfully */
-    LIBP2P_ERROR_INVALID_ARGUMENT = -1,    /**< Invalid argument provided */
-    LIBP2P_ERROR_OUT_OF_MEMORY = -2,       /**< Memory allocation failed */
-    LIBP2P_ERROR_CONNECTION_FAILED = -3,   /**< Network connection failed */
-    LIBP2P_ERROR_PROTOCOL_ERROR = -4,      /**< Protocol-level error occurred */
-    LIBP2P_ERROR_IO_ERROR = -5,            /**< Input/output error */
-    LIBP2P_ERROR_TIMEOUT = -6,             /**< Operation timed out */
-    LIBP2P_ERROR_NOT_FOUND = -7,           /**< Requested resource not found */
-    LIBP2P_ERROR_ALREADY_EXISTS = -8,      /**< Resource already exists */
-    LIBP2P_ERROR_UNKNOWN = -999            /**< Unknown or unspecified error */
+  LIBP2P_SUCCESS = 0,                  /**< Operation completed successfully */
+  LIBP2P_ERROR_INVALID_ARGUMENT = -1,  /**< Invalid argument provided */
+  LIBP2P_ERROR_OUT_OF_MEMORY = -2,     /**< Memory allocation failed */
+  LIBP2P_ERROR_CONNECTION_FAILED = -3, /**< Network connection failed */
+  LIBP2P_ERROR_PROTOCOL_ERROR = -4,    /**< Protocol-level error occurred */
+  LIBP2P_ERROR_IO_ERROR = -5,          /**< Input/output error */
+  LIBP2P_ERROR_TIMEOUT = -6,           /**< Operation timed out */
+  LIBP2P_ERROR_NOT_FOUND = -7,         /**< Requested resource not found */
+  LIBP2P_ERROR_ALREADY_EXISTS = -8,    /**< Resource already exists */
+  LIBP2P_ERROR_UNKNOWN = -999          /**< Unknown or unspecified error */
 } libp2p_error_t;
 
-/** @} */ // end of error_codes group
+/** @} */  // end of error_codes group
 
 /**
  * @defgroup callbacks Callback Types
@@ -110,29 +110,34 @@ typedef enum {
 /**
  * @brief Callback function for handling incoming streams
  *
- * This callback is invoked when a new stream is established for a registered protocol.
- * The callback should handle the stream communication and is responsible for reading
- * from and writing to the stream as needed.
+ * This callback is invoked when a new stream is established for a registered
+ * protocol. The callback should handle the stream communication and is
+ * responsible for reading from and writing to the stream as needed.
  *
  * @param stream The newly established stream
  * @param user_data User-provided data passed during protocol registration
  *
- * @note The stream remains valid until explicitly closed or the connection is terminated
+ * @note The stream remains valid until explicitly closed or the connection is
+ * terminated
  */
-typedef void (*libp2p_stream_handler_t)(libp2p_stream_t* stream, void* user_data);
+typedef void (*libp2p_stream_handler_t)(libp2p_stream_t *stream,
+                                        void *user_data);
 
 /**
  * @brief Callback function for connection establishment events
  *
- * This callback is invoked when a connection attempt completes, either successfully
- * or with an error. The peer_id parameter indicates which peer the connection was
- * established with.
+ * This callback is invoked when a connection attempt completes, either
+ * successfully or with an error. The peer_id parameter indicates which peer the
+ * connection was established with.
  *
  * @param host The host that initiated the connection
- * @param peer_id Base58-encoded peer ID of the connected peer, or NULL on failure
+ * @param peer_id Base58-encoded peer ID of the connected peer, or NULL on
+ * failure
  * @param user_data User-provided data passed during dial operation
  */
-typedef void (*libp2p_connection_handler_t)(libp2p_host_t* host, const char* peer_id, void* user_data);
+typedef void (*libp2p_connection_handler_t)(libp2p_host_t *host,
+                                            const char *peer_id,
+                                            void *user_data);
 
 /**
  * @brief Callback function for asynchronous read operations
@@ -146,7 +151,11 @@ typedef void (*libp2p_connection_handler_t)(libp2p_host_t* host, const char* pee
  * @param error Error code indicating the result of the operation
  * @param user_data User-provided data passed during read operation
  */
-typedef void (*libp2p_read_callback_t)(libp2p_stream_t* stream, const uint8_t* data, size_t size, libp2p_error_t error, void* user_data);
+typedef void (*libp2p_read_callback_t)(libp2p_stream_t *stream,
+                                       const uint8_t *data,
+                                       size_t size,
+                                       libp2p_error_t error,
+                                       void *user_data);
 
 /**
  * @brief Callback function for asynchronous write operations
@@ -159,9 +168,12 @@ typedef void (*libp2p_read_callback_t)(libp2p_stream_t* stream, const uint8_t* d
  * @param error Error code indicating the result of the operation
  * @param user_data User-provided data passed during write operation
  */
-typedef void (*libp2p_write_callback_t)(libp2p_stream_t* stream, size_t bytes_written, libp2p_error_t error, void* user_data);
+typedef void (*libp2p_write_callback_t)(libp2p_stream_t *stream,
+                                        size_t bytes_written,
+                                        libp2p_error_t error,
+                                        void *user_data);
 
-/** @} */ // end of callbacks group
+/** @} */  // end of callbacks group
 
 /**
  * @defgroup context_management Context Management
@@ -183,7 +195,7 @@ typedef void (*libp2p_write_callback_t)(libp2p_stream_t* stream, size_t bytes_wr
  *
  * @note The returned context must be destroyed with libp2p_context_destroy()
  */
-libp2p_context_t* libp2p_context_create(void);
+libp2p_context_t *libp2p_context_create(void);
 
 /**
  * @brief Destroy a libp2p execution context
@@ -197,7 +209,7 @@ libp2p_context_t* libp2p_context_create(void);
  * @warning All hosts created with this context must be destroyed before
  *          calling this function
  */
-void libp2p_context_destroy(libp2p_context_t* ctx);
+void libp2p_context_destroy(libp2p_context_t *ctx);
 
 /**
  * @brief Run the event loop for the given context
@@ -212,7 +224,7 @@ void libp2p_context_destroy(libp2p_context_t* ctx);
  * @note This function blocks until the context is stopped
  * @note This function is thread-safe and can be called from any thread
  */
-libp2p_error_t libp2p_context_run(libp2p_context_t* ctx);
+libp2p_error_t libp2p_context_run(libp2p_context_t *ctx);
 
 /**
  * @brief Stop the event loop for the given context
@@ -225,9 +237,9 @@ libp2p_error_t libp2p_context_run(libp2p_context_t* ctx);
  *
  * @note This function is non-blocking and thread-safe
  */
-void libp2p_context_stop(libp2p_context_t* ctx);
+void libp2p_context_stop(libp2p_context_t *ctx);
 
-/** @} */ // end of context_management group
+/** @} */  // end of context_management group
 
 /**
  * @defgroup host_management Host Management
@@ -245,13 +257,15 @@ void libp2p_context_stop(libp2p_context_t* ctx);
  * listen for connections, dial other peers, and register protocol handlers.
  *
  * @param ctx Execution context to use for this host
- * @param keypair_seed Optional seed for deterministic key generation (can be NULL)
+ * @param keypair_seed Optional seed for deterministic key generation (can be
+ * NULL)
  * @return Pointer to the new host, or NULL on failure
  *
  * @note If keypair_seed is NULL, a random identity will be generated
  * @note The returned host must be destroyed with libp2p_host_destroy()
  */
-libp2p_host_t* libp2p_host_create(libp2p_context_t* ctx, const char* keypair_seed);
+libp2p_host_t *libp2p_host_create(libp2p_context_t *ctx,
+                                  const char *keypair_seed);
 
 /**
  * @brief Destroy a libp2p host
@@ -261,7 +275,7 @@ libp2p_host_t* libp2p_host_create(libp2p_context_t* ctx, const char* keypair_see
  *
  * @param host Host to destroy, or NULL (safe to pass NULL)
  */
-void libp2p_host_destroy(libp2p_host_t* host);
+void libp2p_host_destroy(libp2p_host_t *host);
 
 /**
  * @brief Start the host's networking services
@@ -272,7 +286,7 @@ void libp2p_host_destroy(libp2p_host_t* host);
  * @param host Host to start
  * @return LIBP2P_SUCCESS on success, error code on failure
  */
-libp2p_error_t libp2p_host_start(libp2p_host_t* host);
+libp2p_error_t libp2p_host_start(libp2p_host_t *host);
 
 /**
  * @brief Start listening on a network address
@@ -282,7 +296,8 @@ libp2p_error_t libp2p_host_start(libp2p_host_t* host);
  * multiple times.
  *
  * @param host Host to configure
- * @param multiaddr Multiaddress to listen on (e.g., "/ip4/0.0.0.0/tcp/0/quic-v1")
+ * @param multiaddr Multiaddress to listen on (e.g.,
+ * "/ip4/0.0.0.0/tcp/0/quic-v1")
  * @return LIBP2P_SUCCESS on success, error code on failure
  *
  * @note Port 0 can be used to automatically assign an available port
@@ -291,7 +306,7 @@ libp2p_error_t libp2p_host_start(libp2p_host_t* host);
  *       - "/ip4/0.0.0.0/tcp/0/quic-v1" (QUIC)
  *       - "/ip6/::/tcp/8080" (IPv6 TCP)
  */
-libp2p_error_t libp2p_host_listen(libp2p_host_t* host, const char* multiaddr);
+libp2p_error_t libp2p_host_listen(libp2p_host_t *host, const char *multiaddr);
 
 /**
  * @brief Register a protocol handler
@@ -308,9 +323,12 @@ libp2p_error_t libp2p_host_listen(libp2p_host_t* host, const char* multiaddr);
  * @note Protocol IDs should follow the convention "/protocol-name/version"
  * @note The handler will be called from the context's event loop thread
  */
-libp2p_error_t libp2p_host_register_protocol(libp2p_host_t* host, const char* protocol_id, libp2p_stream_handler_t handler, void* user_data);
+libp2p_error_t libp2p_host_register_protocol(libp2p_host_t *host,
+                                             const char *protocol_id,
+                                             libp2p_stream_handler_t handler,
+                                             void *user_data);
 
-/** @} */ // end of host_management group
+/** @} */  // end of host_management group
 
 /**
  * @defgroup host_info Host Information
@@ -321,15 +339,15 @@ libp2p_error_t libp2p_host_register_protocol(libp2p_host_t* host, const char* pr
 /**
  * @brief Get the host's peer ID
  *
- * Returns the peer ID of the host as a libp2p_peer_id_t object. This ID uniquely
- * identifies the host in the network.
+ * Returns the peer ID of the host as a libp2p_peer_id_t object. This ID
+ * uniquely identifies the host in the network.
  *
  * @param host Host to query
  * @return Pointer to peer ID object, or NULL on failure
  *
  * @note The returned peer ID must be destroyed with libp2p_peer_id_destroy()
  */
-libp2p_peer_id_t* libp2p_host_peer_id(libp2p_host_t* host);
+libp2p_peer_id_t *libp2p_host_peer_id(libp2p_host_t *host);
 
 /**
  * @brief Get the host's default listen address
@@ -343,9 +361,9 @@ libp2p_peer_id_t* libp2p_host_peer_id(libp2p_host_t* host);
  * @note The returned string is valid until the host is destroyed
  * @note The string should not be modified or freed
  */
-const char* libp2p_host_default_listen(libp2p_host_t* host);
+const char *libp2p_host_default_listen(libp2p_host_t *host);
 
-/** @} */ // end of host_info group
+/** @} */  // end of host_info group
 
 /**
  * @defgroup connection_management Connection Management
@@ -368,9 +386,14 @@ const char* libp2p_host_default_listen(libp2p_host_t* host);
  * @return LIBP2P_SUCCESS if dial was initiated, error code on immediate failure
  *
  * @note The callback will be called even if the connection fails
- * @note Example: libp2p_host_dial(host, "/ip4/127.0.0.1/tcp/8080/quic-v1", "QmPeerID...", callback, NULL)
+ * @note Example: libp2p_host_dial(host, "/ip4/127.0.0.1/tcp/8080/quic-v1",
+ * "QmPeerID...", callback, NULL)
  */
-libp2p_error_t libp2p_host_dial(libp2p_host_t* host, const char* multiaddr, const char* peer_id, libp2p_connection_handler_t callback, void* user_data);
+libp2p_error_t libp2p_host_dial(libp2p_host_t *host,
+                                const char *multiaddr,
+                                const char *peer_id,
+                                libp2p_connection_handler_t callback,
+                                void *user_data);
 
 /**
  * @brief Create a new stream to a peer
@@ -384,14 +407,19 @@ libp2p_error_t libp2p_host_dial(libp2p_host_t* host, const char* multiaddr, cons
  * @param protocol_id Protocol identifier for the stream
  * @param callback Callback invoked when stream creation completes
  * @param user_data Optional user data passed to the callback
- * @return LIBP2P_SUCCESS if stream creation was initiated, error code on immediate failure
+ * @return LIBP2P_SUCCESS if stream creation was initiated, error code on
+ * immediate failure
  *
  * @note The callback will receive the new stream on success, or NULL on failure
  * @note The peer must be connected before calling this function
  */
-libp2p_error_t libp2p_host_new_stream(libp2p_host_t* host, const char* peer_id, const char* protocol_id, libp2p_stream_handler_t callback, void* user_data);
+libp2p_error_t libp2p_host_new_stream(libp2p_host_t *host,
+                                      const char *peer_id,
+                                      const char *protocol_id,
+                                      libp2p_stream_handler_t callback,
+                                      void *user_data);
 
-/** @} */ // end of connection_management group
+/** @} */  // end of connection_management group
 
 /**
  * @defgroup stream_operations Stream Operations
@@ -415,7 +443,11 @@ libp2p_error_t libp2p_host_new_stream(libp2p_host_t* host, const char* peer_id, 
  * @note The buffer must remain valid until the callback is invoked
  * @note The callback may be called with fewer bytes than requested
  */
-libp2p_error_t libp2p_stream_read(libp2p_stream_t* stream, uint8_t* buffer, size_t buffer_size, libp2p_read_callback_t callback, void* user_data);
+libp2p_error_t libp2p_stream_read(libp2p_stream_t *stream,
+                                  uint8_t *buffer,
+                                  size_t buffer_size,
+                                  libp2p_read_callback_t callback,
+                                  void *user_data);
 
 /**
  * @brief Write data to a stream asynchronously
@@ -428,12 +460,17 @@ libp2p_error_t libp2p_stream_read(libp2p_stream_t* stream, uint8_t* buffer, size
  * @param size Number of bytes to write
  * @param callback Callback invoked when write completes
  * @param user_data Optional user data passed to the callback
- * @return LIBP2P_SUCCESS if write was initiated, error code on immediate failure
+ * @return LIBP2P_SUCCESS if write was initiated, error code on immediate
+ * failure
  *
  * @note The data buffer must remain valid until the callback is invoked
  * @note The callback indicates how many bytes were actually written
  */
-libp2p_error_t libp2p_stream_write(libp2p_stream_t* stream, const uint8_t* data, size_t size, libp2p_write_callback_t callback, void* user_data);
+libp2p_error_t libp2p_stream_write(libp2p_stream_t *stream,
+                                   const uint8_t *data,
+                                   size_t size,
+                                   libp2p_write_callback_t callback,
+                                   void *user_data);
 
 /**
  * @brief Close a stream
@@ -447,7 +484,7 @@ libp2p_error_t libp2p_stream_write(libp2p_stream_t* stream, const uint8_t* data,
  * @note This operation is synchronous
  * @note The stream pointer becomes invalid after this call
  */
-libp2p_error_t libp2p_stream_close(libp2p_stream_t* stream);
+libp2p_error_t libp2p_stream_close(libp2p_stream_t *stream);
 
 /**
  * @brief Check if a stream is closed
@@ -457,11 +494,12 @@ libp2p_error_t libp2p_stream_close(libp2p_stream_t* stream);
  * @param stream Stream to check
  * @return true if the stream is closed, false if it's still active
  *
- * @note Returns true if the stream pointer is NULL
+ * @note Returns true if the stream pointer is NULL. Might return true even if
+ * stream is already invalid
  */
-bool libp2p_stream_is_closed(libp2p_stream_t* stream);
+bool libp2p_stream_is_closed(libp2p_stream_t *stream);
 
-/** @} */ // end of stream_operations group
+/** @} */  // end of stream_operations group
 
 /**
  * @defgroup utility_functions Utility Functions
@@ -477,10 +515,11 @@ bool libp2p_stream_is_closed(libp2p_stream_t* stream);
  * @param addr_str String representation of the multiaddress
  * @return Pointer to the new multiaddress, or NULL on parse error
  *
- * @note The returned multiaddress must be destroyed with libp2p_multiaddr_destroy()
+ * @note The returned multiaddress must be destroyed with
+ * libp2p_multiaddr_destroy()
  * @note Example formats: "/ip4/127.0.0.1/tcp/8080", "/ip6/::1/tcp/9090/quic-v1"
  */
-libp2p_multiaddr_t* libp2p_multiaddr_create(const char* addr_str);
+libp2p_multiaddr_t *libp2p_multiaddr_create(const char *addr_str);
 
 /**
  * @brief Destroy a multiaddress
@@ -489,7 +528,7 @@ libp2p_multiaddr_t* libp2p_multiaddr_create(const char* addr_str);
  *
  * @param addr Multiaddress to destroy, or NULL (safe to pass NULL)
  */
-void libp2p_multiaddr_destroy(libp2p_multiaddr_t* addr);
+void libp2p_multiaddr_destroy(libp2p_multiaddr_t *addr);
 
 /**
  * @brief Convert a multiaddress to string representation
@@ -502,7 +541,7 @@ void libp2p_multiaddr_destroy(libp2p_multiaddr_t* addr);
  * @note The returned string is valid until the multiaddress is destroyed
  * @note The string should not be modified or freed
  */
-const char* libp2p_multiaddr_to_string(libp2p_multiaddr_t* addr);
+const char *libp2p_multiaddr_to_string(libp2p_multiaddr_t *addr);
 
 /**
  * @brief Create a peer ID from a Base58 string
@@ -514,7 +553,7 @@ const char* libp2p_multiaddr_to_string(libp2p_multiaddr_t* addr);
  *
  * @note The returned peer ID must be destroyed with libp2p_peer_id_destroy()
  */
-libp2p_peer_id_t* libp2p_peer_id_create(const char* base58_str);
+libp2p_peer_id_t *libp2p_peer_id_create(const char *base58_str);
 
 /**
  * @brief Destroy a peer ID
@@ -523,7 +562,7 @@ libp2p_peer_id_t* libp2p_peer_id_create(const char* base58_str);
  *
  * @param peer_id Peer ID to destroy, or NULL (safe to pass NULL)
  */
-void libp2p_peer_id_destroy(libp2p_peer_id_t* peer_id);
+void libp2p_peer_id_destroy(libp2p_peer_id_t *peer_id);
 
 /**
  * @brief Convert a peer ID to Base58 string representation
@@ -536,9 +575,9 @@ void libp2p_peer_id_destroy(libp2p_peer_id_t* peer_id);
  * @note The returned string is valid until the peer ID is destroyed
  * @note The string should not be modified or freed
  */
-const char* libp2p_peer_id_to_string(libp2p_peer_id_t* peer_id);
+const char *libp2p_peer_id_to_string(libp2p_peer_id_t *peer_id);
 
-/** @} */ // end of utility_functions group
+/** @} */  // end of utility_functions group
 
 /**
  * @defgroup error_handling Error Handling
@@ -556,9 +595,9 @@ const char* libp2p_peer_id_to_string(libp2p_peer_id_t* peer_id);
  *
  * @note The returned string is statically allocated and should not be freed
  */
-const char* libp2p_error_string(libp2p_error_t error);
+const char *libp2p_error_string(libp2p_error_t error);
 
-/** @} */ // end of error_handling group
+/** @} */  // end of error_handling group
 
 /**
  * @defgroup logging Logging
@@ -572,12 +611,12 @@ const char* libp2p_error_string(libp2p_error_t error);
  * Controls the verbosity of libp2p's internal logging.
  */
 typedef enum {
-    LIBP2P_LOG_TRACE = 0,      /**< Most verbose - trace execution flow */
-    LIBP2P_LOG_DEBUG = 1,      /**< Debug information */
-    LIBP2P_LOG_INFO = 2,       /**< General information */
-    LIBP2P_LOG_WARN = 3,       /**< Warning messages */
-    LIBP2P_LOG_ERROR = 4,      /**< Error messages */
-    LIBP2P_LOG_CRITICAL = 5    /**< Critical errors only */
+  LIBP2P_LOG_TRACE = 0,   /**< Most verbose - trace execution flow */
+  LIBP2P_LOG_DEBUG = 1,   /**< Debug information */
+  LIBP2P_LOG_INFO = 2,    /**< General information */
+  LIBP2P_LOG_WARN = 3,    /**< Warning messages */
+  LIBP2P_LOG_ERROR = 4,   /**< Error messages */
+  LIBP2P_LOG_CRITICAL = 5 /**< Critical errors only */
 } libp2p_log_level_t;
 
 /**
@@ -593,10 +632,10 @@ typedef enum {
  */
 void libp2p_set_log_level(libp2p_log_level_t level);
 
-/** @} */ // end of logging group
+/** @} */  // end of logging group
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // LIBP2P_C_API_H
+#endif  // LIBP2P_C_API_H
