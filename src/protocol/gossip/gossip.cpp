@@ -262,11 +262,16 @@ namespace libp2p::protocol::gossip {
       return;
     }
     peer->writing_ = true;
-    coroSpawn(*io_context_, [peer]() -> Coro<void> {
+    coroSpawn(*io_context_, [WEAK_SELF, peer]() -> Coro<void> {
       co_await coroYield();
       assert(peer->writing_);
       assert(peer->stream_out_.has_value());
       while (auto message = qtils::optionTake(peer->batch_)) {
+        auto self = weak_self.lock();
+        if (not self) {
+          break;
+        }
+
         gossipsub::pb::RPC pb_message;
         assert(not message->subscriptions.empty()
                or not message->publish.empty());
@@ -279,7 +284,8 @@ namespace libp2p::protocol::gossip {
 
         for (auto &publish : message->publish) {
           auto &pb_publish = *pb_message.add_publish();
-          assert(config_.message_authenticity == MessageAuthenticity::Signed);
+          assert(self->config_.message_authenticity
+                 == MessageAuthenticity::Signed);
 
           if (publish.from.has_value()) {
             *pb_publish.mutable_from() =
@@ -302,6 +308,7 @@ namespace libp2p::protocol::gossip {
 
         auto encoded = protobufEncode(pb_message);
         assert(not encoded.empty());
+        self.reset();
         auto r =
             co_await writeVarintMessage(peer->stream_out_.value(), encoded);
         if (not r.has_value()) {
