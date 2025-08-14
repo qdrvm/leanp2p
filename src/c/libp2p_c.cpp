@@ -184,29 +184,16 @@ libp2p_host_t *libp2p_host_create(libp2p_context_t *ctx,
 
   // Derive deterministic index from seed
   uint32_t index = 0;
-  // if (keypair_seed) {
-  //   index = static_cast<uint32_t>(std::hash<std::string>{}(keypair_seed));
-  // }
+  if (keypair_seed) {
+    index = static_cast<uint32_t>(std::hash<std::string>{}(keypair_seed));
+  }
   libp2p::SamplePeer sample_peer{index % 1000};  // keep port reasonable
 
   auto injector = libp2p::injector::makeHostInjector(
+      boost::di::bind<boost::asio::io_context>().to(ctx->io_context),
       libp2p::injector::useKeyPair(sample_peer.keypair),
       libp2p::injector::useTransportAdaptors<
           libp2p::transport::QuicTransport>());
-
-  // Clean up objects tied to old io_context BEFORE replacing it
-  if (ctx->work_guard) {
-    ctx->work_guard.reset();
-  }
-
-  // Obtain injector's io_context so libp2p_context_run drives host internals
-  auto injected_io =
-      injector.create<std::shared_ptr<boost::asio::io_context>>();
-  ctx->io_context = injected_io;  // overwrite after old guard/signals reset
-
-  ctx->work_guard = std::make_unique<
-      boost::asio::executor_work_guard<boost::asio::io_context::executor_type>>(
-      boost::asio::make_work_guard(*ctx->io_context));
 
   auto host = injector.create<std::shared_ptr<libp2p::host::BasicHost>>();
   host_wrapper->host = host;
