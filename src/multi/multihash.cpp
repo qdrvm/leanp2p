@@ -91,10 +91,6 @@ namespace libp2p::multi {
   }
 
   outcome::result<Multihash> Multihash::createFromBytes(BytesIn b) {
-    if (b.size() < kHeaderSize) {
-      return Error::INPUT_TOO_SHORT;
-    }
-
     basic::VarintPrefixReader vr;
     if (vr.consume(b) != basic::VarintPrefixReader::kReady) {
       return Error::INPUT_TOO_SHORT;

@@ -29,7 +29,7 @@ namespace libp2p::connection {
      * Get a PeerId of peer this connection is established with
      * @return peer id
      */
-    virtual outcome::result<peer::PeerId> remotePeer() const = 0;
+    virtual peer::PeerId remotePeer() const = 0;
 
     /**
      * Get a public key of peer this connection is established with

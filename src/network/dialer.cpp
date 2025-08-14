@@ -83,8 +83,9 @@ namespace libp2p::network {
         co_return Error::ADDRESS_FAMILY_NOT_SUPPORTED;
       }
       if (ctx.result.has_value()) {
+        auto result = std::move(ctx.result.value());
         completeDial(peer_id);
-        co_return ctx.result.value();
+        co_return result;
       }
       // this would never happen. Previous if-statement should work instead'
       completeDial(peer_id);

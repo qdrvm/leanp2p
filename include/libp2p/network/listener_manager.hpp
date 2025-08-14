@@ -39,9 +39,8 @@ namespace libp2p::network {
 
     outcome::result<void> listen(const multi::Multiaddress &ma);
 
-    outcome::result<void> listenProtocol(
-        const peer::ProtocolName &name,
-        std::shared_ptr<protocol::BaseProtocol> protocol);
+    void listenProtocol(const peer::ProtocolName &name,
+                        std::shared_ptr<protocol::BaseProtocol> protocol);
 
     /**
      * Get a list of handled protocols
@@ -63,7 +62,6 @@ namespace libp2p::network {
         const peer::ProtocolName &name) const;
 
    private:
-
     std::shared_ptr<boost::asio::io_context> io_context_;
     bool started = false;
 

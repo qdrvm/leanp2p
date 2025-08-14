@@ -73,7 +73,7 @@ namespace libp2p::connection {
      * Get a peer, which the stream is connected to
      * @return id of the peer
      */
-    virtual outcome::result<peer::PeerId> remotePeerId() const = 0;
+    virtual peer::PeerId remotePeerId() const = 0;
 
     /**
      * Get a local multiaddress

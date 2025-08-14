@@ -6,6 +6,7 @@
 
 #include <libp2p/network/listener_manager.hpp>
 
+#include <libp2p/coro/spawn.hpp>
 #include <libp2p/log/logger.hpp>
 
 OUTCOME_CPP_DEFINE_CATEGORY(libp2p::network, ListenerManager::Error, e) {
@@ -156,25 +157,21 @@ namespace libp2p::network {
     //     [this](auto &&r) { this->onConnection(std::forward<decltype(r)>(r));
     //     });
     auto listener = tr->createListener();
-    boost::asio::co_spawn(
-        *io_context_,
-        [this, listener]() mutable -> Coro<void> {
-          while (auto item = co_await listener->asyncAccept()) {
-            this->onConnection(std::move(item));
-          }
-        },
-        boost::asio::detached);
+    coroSpawn(*io_context_, [this, listener]() -> Coro<void> {
+      while (auto item = co_await listener->asyncAccept()) {
+        this->onConnection(std::move(item));
+      }
+    });
 
     listeners_.insert({ma, std::move(listener)});
 
     return outcome::success();
   }
 
-  outcome::result<void> ListenerManager::listenProtocol(
+  void ListenerManager::listenProtocol(
       const peer::ProtocolName &name,
       std::shared_ptr<protocol::BaseProtocol> protocol) {
     protocols_[name] = std::move(protocol);
-    return outcome::success();
   }
 
   std::vector<peer::ProtocolName> ListenerManager::getSupportedProtocols()
@@ -228,61 +225,52 @@ namespace libp2p::network {
     }
     auto &&conn = rconn.value();
 
-    auto rid = conn->remotePeer();
-    if (!rid) {
-      log()->warn("can not get remote peer id, {}", rid.error());
-      return;  // ignore
-    }
-    auto &&id = rid.value();
+    auto id = conn->remotePeer();
 
-    boost::asio::co_spawn(
-        *io_context_,
-        [this, id, conn]() mutable -> Coro<void> {
-          while (not conn->isClosed()) {
-            auto rstream = co_await conn->acceptStream();
-            if (!rstream) {
-              // connection was closed or had some error
-              log()->warn("can not accept stream, {}", rstream.error());
-              continue;  // ignore
-            }
-            auto &&stream = rstream.value();
-            auto protocols = this->getSupportedProtocols();
-            if (protocols.empty()) {
-              log()->warn("no protocols are served, resetting inbound stream");
-              stream->reset();
-              continue;  // ignore
-            }
-            // negotiate protocols
-            outcome::result<peer::ProtocolName> rproto =
-                co_await this->multiselect_->selectOneOf(
-                    protocols, stream, false, true);
+    coroSpawn(*io_context_, [this, id, conn]() -> Coro<void> {
+      while (not conn->isClosed()) {
+        auto rstream = co_await conn->acceptStream();
+        if (!rstream) {
+          // connection was closed or had some error
+          log()->warn("can not accept stream, {}", rstream.error());
+          continue;  // ignore
+        }
+        auto &&stream = rstream.value();
+        auto protocols = this->getSupportedProtocols();
+        if (protocols.empty()) {
+          log()->warn("no protocols are served, resetting inbound stream");
+          stream->reset();
+          continue;  // ignore
+        }
+        // negotiate protocols
+        outcome::result<peer::ProtocolName> rproto =
+            co_await this->multiselect_->selectOneOf(
+                protocols, stream, false, true);
 
-            bool success = true;
+        bool success = true;
 
-            if (!rproto) {
-              log()->warn("can not negotiate protocols, {}", rproto.error());
-              success = false;
-            } else {
-              auto &&proto_name = rproto.value();
-              outcome::result<std::shared_ptr<protocol::BaseProtocol>>
-                  rprotocol = this->getProtocol(proto_name);
-              if (!rprotocol) {
-                log()->warn("can not negotiate protocols, {}",
-                            rprotocol.error());
-                success = false;
-              }
-              const auto &protocol = rprotocol.value();
-              protocol->handle(stream);
-            }
-
-            if (!success) {
-              stream->reset();
-            }
+        if (!rproto) {
+          log()->warn("can not negotiate protocols, {}", rproto.error());
+          success = false;
+        } else {
+          auto &&proto_name = rproto.value();
+          outcome::result<std::shared_ptr<protocol::BaseProtocol>> rprotocol =
+              this->getProtocol(proto_name);
+          if (!rprotocol) {
+            log()->warn("can not negotiate protocols, {}", rprotocol.error());
+            success = false;
           }
-          // connection was closed, notify connection manager
-          this->cmgr_->onConnectionClosed(id, conn);
-        },
-        boost::asio::detached);
+          const auto &protocol = rprotocol.value();
+          protocol->handle(stream);
+        }
+
+        if (!success) {
+          stream->reset();
+        }
+      }
+      // connection was closed, notify connection manager
+      this->cmgr_->onConnectionClosed(id, conn);
+    });
 
     // store connection
     this->cmgr_->addConnectionToPeer(id, conn);
