@@ -13,5 +13,6 @@ add_library(p2p_multiselect
     )
 target_link_libraries(p2p_multiselect
     p2p_varint_prefix_reader
+    p2p_read_buffer
     p2p_logger
     )

@@ -13,6 +13,7 @@ add_library(p2p_uvarint
 target_link_libraries(p2p_uvarint
     Boost::boost
     p2p_logger
+    fmt::fmt
     )
 
 
@@ -21,6 +22,8 @@ add_library(p2p_multihash
     )
 target_link_libraries(p2p_multihash
     Boost::boost
+    p2p_varint_prefix_reader
+    fmt::fmt
     )
 
 
@@ -30,6 +33,7 @@ add_library(p2p_multiaddress
 target_link_libraries(p2p_multiaddress
     p2p_converters
     Boost::boost
+    fmt::fmt
     )
 
 add_library(p2p_cid
@@ -42,4 +46,5 @@ target_link_libraries(p2p_cid
     p2p_sha
     p2p_uvarint
     p2p_multibase_codec
+    fmt::fmt
     )

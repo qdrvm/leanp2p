@@ -3,6 +3,9 @@ add_library(p2p_connection_manager
 )
 target_link_libraries(p2p_connection_manager
     Boost::boost
+    fmt::fmt
+    p2p_logger
+    p2p_peer_id
 )
 
 add_library(p2p_transport_manager
@@ -10,6 +13,8 @@ add_library(p2p_transport_manager
 )
 target_link_libraries(p2p_transport_manager
     p2p_multiaddress
+    fmt::fmt
+    p2p_logger
 )
 
 add_library(p2p_listener_manager
@@ -20,6 +25,9 @@ target_link_libraries(p2p_listener_manager
     p2p_multiaddress
     p2p_peer_id
     p2p_logger
+    fmt::fmt
+    p2p_transport_manager
+    p2p_connection_manager
 )
 
 add_library(p2p_dialer
@@ -29,9 +37,6 @@ target_link_libraries(p2p_dialer
     Boost::boost
     p2p_listener_manager
     p2p_multiaddress
-    p2p_multiselect
-    p2p_peer_id
+    fmt::fmt
     p2p_logger
-    p2p_multiselect
-    p2p_random_generator
 )
