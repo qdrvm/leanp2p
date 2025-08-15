@@ -18,9 +18,17 @@ namespace boost::asio {
   class io_context;
 }  // namespace boost::asio
 
+namespace libp2p::crypto {
+  class CryptoProvider;
+}  // namespace libp2p::crypto
+
 namespace libp2p::host {
   class BasicHost;
 }  // namespace libp2p::host
+
+namespace libp2p::peer {
+  class IdentityManager;
+}  // namespace libp2p::peer
 
 namespace libp2p::protocol::gossip {
   using StreamPtr = std::shared_ptr<connection::Stream>;
@@ -66,6 +74,8 @@ namespace libp2p::protocol::gossip {
    public:
     Gossip(std::shared_ptr<boost::asio::io_context> io_context,
            std::shared_ptr<host::BasicHost> host,
+           std::shared_ptr<peer::IdentityManager> id_mgr,
+           std::shared_ptr<crypto::CryptoProvider> crypto_provider,
            Config config);
 
     // Adaptor
@@ -94,6 +104,8 @@ namespace libp2p::protocol::gossip {
    private:
     std::shared_ptr<boost::asio::io_context> io_context_;
     std::shared_ptr<host::BasicHost> host_;
+    std::shared_ptr<peer::IdentityManager> id_mgr_;
+    std::shared_ptr<crypto::CryptoProvider> crypto_provider_;
     Config config_;
     event::Handle on_peer_sub_;
     std::unordered_map<TopicHash, std::shared_ptr<Topic>, qtils::BytesStdHash>

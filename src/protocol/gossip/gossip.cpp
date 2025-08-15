@@ -14,14 +14,26 @@
 #include <libp2p/common/weak_macro.hpp>
 #include <libp2p/coro/spawn.hpp>
 #include <libp2p/coro/yield.hpp>
+#include <libp2p/crypto/crypto_provider.hpp>
 #include <libp2p/host/basic_host.hpp>
 #include <libp2p/protocol/gossip/gossip.hpp>
+#include <qtils/append.hpp>
 #include <qtils/bytes.hpp>
 #include <qtils/bytestr.hpp>
 #include <qtils/option_take.hpp>
 
-
 namespace libp2p::protocol::gossip {
+  constexpr qtils::BytesN<14> kSigningContext{
+      'l', 'i', 'b', 'p', '2', 'p', '-', 'p', 'u', 'b', 's', 'u', 'b', ':'};
+
+  inline Bytes getSignable(gossipsub::pb::Message &pb_publish) {
+    pb_publish.clear_signature();
+    pb_publish.clear_key();
+    auto signable = qtils::asVec(kSigningContext);
+    qtils::append(signable, protobufEncode(pb_publish));
+    return signable;
+  }
+
   MessageId defaultMessageIdFn(const Message &message) {
     std::string str;
     static auto empty_from = PeerId::fromBytes(Bytes{0, 1, 0}).value();
@@ -51,9 +63,13 @@ namespace libp2p::protocol::gossip {
 
   Gossip::Gossip(std::shared_ptr<boost::asio::io_context> io_context,
                  std::shared_ptr<host::BasicHost> host,
+                 std::shared_ptr<peer::IdentityManager> id_mgr,
+                 std::shared_ptr<crypto::CryptoProvider> crypto_provider,
                  Config config)
       : io_context_{std::move(io_context)},
         host_{std::move(host)},
+        id_mgr_{std::move(id_mgr)},
+        crypto_provider_{std::move(crypto_provider)},
         config_{std::move(config)},
         publish_config_{
             .last_seq_no = static_cast<Seqno>(std::chrono::nanoseconds{
@@ -188,7 +204,8 @@ namespace libp2p::protocol::gossip {
       if (not from_result) {
         continue;
       }
-      message.from.emplace(from_result.value());
+      auto &from = from_result.value();
+      message.from.emplace(from);
 
       message.data = qtils::asVec(qtils::str2byte(pb_publish.data()));
 
@@ -200,7 +217,21 @@ namespace libp2p::protocol::gossip {
 
       message.topic = qtils::asVec(qtils::str2byte(pb_publish.topic()));
 
-      // TODO: signature
+      gossipsub::pb::Message pb_signable = pb_publish;
+      auto signable = getSignable(pb_signable);
+
+      message.signature = qtils::asVec(qtils::str2byte(pb_publish.signature()));
+
+      auto public_key = from.publicKey();
+      if (not public_key.has_value()) {
+        continue;
+      }
+
+      auto verify =
+          crypto_provider_->verify(signable, *message.signature, *public_key);
+      if (not verify.has_value() or not verify.value()) {
+        continue;
+      }
 
       auto topic_it = topics_.find(message.topic);
       if (topic_it == topics_.end()) {
@@ -303,7 +334,17 @@ namespace libp2p::protocol::gossip {
 
           *pb_publish.mutable_topic() = qtils::byte2str(publish.topic);
 
-          // TODO: signature
+          Bytes signature;
+          if (publish.signature.has_value()) {
+            signature = *publish.signature;
+          } else {
+            auto signable = getSignable(pb_publish);
+            signature =
+                self->crypto_provider_
+                    ->sign(signable, self->id_mgr_->getKeyPair().privateKey)
+                    .value();
+          }
+          *pb_publish.mutable_signature() = qtils::byte2str(signature);
         }
 
         auto encoded = protobufEncode(pb_message);
