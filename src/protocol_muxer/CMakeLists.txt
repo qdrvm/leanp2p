@@ -7,9 +7,6 @@
 add_library(p2p_multiselect
     protocol_muxer_error.cpp
     multiselect.cpp
-    multiselect/multiselect_instance.cpp
-    multiselect/parser.cpp
-#    multiselect/simple_stream_negotiate.cpp
     )
 target_link_libraries(p2p_multiselect
     p2p_varint_prefix_reader

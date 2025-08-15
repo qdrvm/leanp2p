@@ -247,26 +247,20 @@ namespace libp2p::network {
             co_await this->multiselect_->selectOneOf(
                 protocols, stream, false, true);
 
-        bool success = true;
-
-        if (!rproto) {
-          log()->warn("can not negotiate protocols, {}", rproto.error());
-          success = false;
-        } else {
+        if (rproto.has_value()) {
           auto &&proto_name = rproto.value();
           outcome::result<std::shared_ptr<protocol::BaseProtocol>> rprotocol =
               this->getProtocol(proto_name);
-          if (!rprotocol) {
-            log()->warn("can not negotiate protocols, {}", rprotocol.error());
-            success = false;
+          if (rprotocol.has_value()) {
+            const auto &protocol = rprotocol.value();
+            protocol->handle(stream);
+            continue;
           }
-          const auto &protocol = rprotocol.value();
-          protocol->handle(stream);
+          log()->warn("can not negotiate protocols, {}", rprotocol.error());
+        } else {
+          log()->warn("can not negotiate protocols, {}", rproto.error());
         }
-
-        if (!success) {
-          stream->reset();
-        }
+        stream->reset();
       }
       // connection was closed, notify connection manager
       this->cmgr_->onConnectionClosed(id, conn);
