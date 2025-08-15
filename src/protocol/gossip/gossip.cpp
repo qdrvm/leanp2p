@@ -107,6 +107,7 @@ namespace libp2p::protocol::gossip {
   }
 
   void Gossip::start() {
+    std::println("LocalPeerId {}", host_->getId().toBase58());
     for (auto &protocol : config_.protocols) {
       host_->listenProtocol(protocol, shared_from_this());
     }
@@ -116,6 +117,7 @@ namespace libp2p::protocol::gossip {
           WEAK_LOCK(connection);
           WEAK_LOCK(self);
           auto peer_id = connection->remotePeer();
+          std::println("ConnectionEstablished {}", peer_id.toBase58());
           auto peer = self->getPeer(peer_id);
           coroSpawn(*self->io_context_,
                     [self, connection, peer]() -> Coro<void> {
@@ -189,6 +191,9 @@ namespace libp2p::protocol::gossip {
     for (auto &pb_subscribe : pb_message.subscriptions()) {
       auto topic_hash = qtils::asVec(qtils::str2byte(pb_subscribe.topic_id()));
       if (pb_subscribe.subscribe()) {
+        std::println("Subscribed {} {}",
+                     peer->peer_id_.toBase58(),
+                     qtils::byte2str(topic_hash));
         peer->topics_.emplace(topic_hash);
         // TODO: mesh
       } else {

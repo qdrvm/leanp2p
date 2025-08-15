@@ -1,0 +1,12 @@
+[package]
+name = "rust-gossip"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.99"
+libc = "0.2.175"
+libp2p = { version = "0.56.0", features = ["gossipsub", "macros", "quic", "tokio"] }
+tokio = { version = "1.47.1", features = ["io-util", "macros"] }
+tokio-fd = "0.3.0"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
