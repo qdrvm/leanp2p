@@ -260,10 +260,7 @@ libp2p_error_t libp2p_host_register_protocol(libp2p_host_t *host,
 
     // Register the protocol with the host - now passing the protocol handler
     // directly
-    auto result = host->host->listenProtocol(protocol_id, protocol_handler);
-    if (!result) {
-      return LIBP2P_ERROR_PROTOCOL_ERROR;
-    }
+    host->host->listenProtocol(protocol_id, protocol_handler);
 
     return LIBP2P_SUCCESS;
   } catch (...) {
