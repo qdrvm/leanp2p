@@ -39,9 +39,8 @@ int main(int argc, char *argv[]) {
 
   // Create and register the echo protocol handler
   // This will handle incoming connections that use the echo protocol
-  libp2p::protocol::Echo echo{io_context};
-  host->listenProtocol(echo.getProtocolId(),
-                       std::make_shared<libp2p::protocol::Echo>(echo));
+  host->listenProtocol(
+      injector.create<std::shared_ptr<libp2p::protocol::Echo>>());
 
   // Start listening on the specified multiaddress
   if (not host->listen(sample_peer.listen)) {

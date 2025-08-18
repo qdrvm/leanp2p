@@ -39,8 +39,7 @@ namespace libp2p::network {
 
     outcome::result<void> listen(const multi::Multiaddress &ma);
 
-    void listenProtocol(const peer::ProtocolName &name,
-                        std::shared_ptr<protocol::BaseProtocol> protocol);
+    void listenProtocol(std::shared_ptr<protocol::BaseProtocol> protocol);
 
     /**
      * Get a list of handled protocols

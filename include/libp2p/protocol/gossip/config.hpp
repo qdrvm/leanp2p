@@ -16,6 +16,17 @@ namespace libp2p::protocol::gossip {
   using Seqno = uint64_t;
 
   inline const ProtocolName kProtocolFloodsub = "/floodsub/1.0.0";
+  inline const ProtocolName kProtocolGossipsub = "/meshsub/1.0.0";
+  inline const ProtocolName kProtocolGossipsubv1_1 = "/meshsub/1.1.0";
+  inline const ProtocolName kProtocolGossipsubv1_2 = "/meshsub/1.2.0";
+
+  enum class PeerKind : uint8_t {
+    NotSupported,
+    Floodsub,
+    Gossipsub,
+    Gossipsubv1_1,
+    Gossipsubv1_2,
+  };
 
   enum class ValidationMode {
     Strict,
@@ -46,8 +57,13 @@ namespace libp2p::protocol::gossip {
     MessageIdFn message_id_fn = defaultMessageIdFn;
     ValidationMode validation_mode = ValidationMode::Strict;
     MessageAuthenticity message_authenticity = MessageAuthenticity::Signed;
-    StreamProtocols protocols{
-        kProtocolFloodsub,
+
+    /// Protocol versions
+    std::unordered_map<ProtocolName, PeerKind> protocol_versions{
+        {kProtocolFloodsub, PeerKind::Floodsub},
+        {kProtocolGossipsub, PeerKind::Gossipsub},
+        {kProtocolGossipsubv1_1, PeerKind::Gossipsubv1_1},
+        {kProtocolGossipsubv1_2, PeerKind::Gossipsubv1_2},
     };
 
     /// Duplicates are prevented by storing message id's of known messages in an

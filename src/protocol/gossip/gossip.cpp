@@ -78,15 +78,26 @@ namespace libp2p::protocol::gossip {
         },
         duplicate_cache_{config.duplicate_cache_time} {
     assert(config_.message_id_fn);
+
+    for (auto &p : config_.protocol_versions) {
+      protocols_.emplace_back(p.first);
+    }
+    std::ranges::sort(protocols_,
+                      [&](const ProtocolName &l, const ProtocolName &r) {
+                        return config_.protocol_versions.at(l)
+                             > config_.protocol_versions.at(r);
+                      });
   }
 
-  peer::ProtocolName Gossip::getProtocolId() const {
-    abort();
+  StreamProtocols Gossip::getProtocolIds() const {
+    return protocols_;
   }
 
-  void Gossip::handle(StreamPtr stream) {
+  void Gossip::handle(StreamAndProtocol stream_and_protocol) {
+    auto &[stream, protocol] = stream_and_protocol;
     auto peer_id = stream->remotePeerId();
     auto peer = getPeer(peer_id);
+    updatePeerKind(peer, protocol);
     peer->streams_in_.emplace(stream);
     coroSpawn(*io_context_, [WEAK_SELF, stream, peer]() -> Coro<void> {
       Bytes encoded;
@@ -109,37 +120,35 @@ namespace libp2p::protocol::gossip {
 
   void Gossip::start() {
     std::println("LocalPeerId {}", host_->getId().toBase58());
-    for (auto &protocol : config_.protocols) {
-      host_->listenProtocol(protocol, shared_from_this());
-    }
-    auto on_peer =
-        [WEAK_SELF](
-            std::weak_ptr<connection::CapableConnection> weak_connection) {
-          WEAK_LOCK(connection);
-          WEAK_LOCK(self);
-          auto peer_id = connection->remotePeer();
-          std::println("ConnectionEstablished {}", peer_id.toBase58());
-          auto peer = self->getPeer(peer_id);
-          coroSpawn(*self->io_context_,
-                    [self, connection, peer]() -> Coro<void> {
-                      auto stream_result = (co_await self->host_->newStream(
-                          connection, self->config_.protocols));
-                      if (not stream_result.has_value()) {
-                        // TODO: can't open out stream?
-                        co_return;
-                      }
-                      if (auto stream = qtils::optionTake(peer->stream_out_)) {
-                        (**stream).reset();
-                      }
-                      peer->stream_out_ = stream_result.value();
-                      if (not self->topics_.empty()) {
-                        auto &message = self->getBatch(peer);
-                        for (auto &p : self->topics_) {
-                          message.subscribe(p.first, true);
-                        }
-                      }
-                    });
-        };
+    host_->listenProtocol(shared_from_this());
+    auto on_peer = [WEAK_SELF](std::weak_ptr<connection::CapableConnection>
+                                   weak_connection) {
+      WEAK_LOCK(connection);
+      WEAK_LOCK(self);
+      auto peer_id = connection->remotePeer();
+      std::println("ConnectionEstablished {}", peer_id.toBase58());
+      auto peer = self->getPeer(peer_id);
+      coroSpawn(*self->io_context_, [self, connection, peer]() -> Coro<void> {
+        auto stream_and_protocol_result =
+            (co_await self->host_->newStream(connection, self->protocols_));
+        if (not stream_and_protocol_result.has_value()) {
+          // TODO: can't open out stream?
+          co_return;
+        }
+        if (auto stream = qtils::optionTake(peer->stream_out_)) {
+          (**stream).reset();
+        }
+        auto &[stream, protocol] = stream_and_protocol_result.value();
+        self->updatePeerKind(peer, protocol);
+        peer->stream_out_ = stream;
+        if (not self->topics_.empty()) {
+          auto &message = self->getBatch(peer);
+          for (auto &p : self->topics_) {
+            message.subscribe(p.first, true);
+          }
+        }
+      });
+    };
     on_peer_sub_ = host_->getBus()
                        .getChannel<event::network::OnNewConnectionChannel>()
                        .subscribe(on_peer);
@@ -365,5 +374,12 @@ namespace libp2p::protocol::gossip {
       }
       peer->writing_ = false;
     });
+  }
+
+  void Gossip::updatePeerKind(const PeerPtr &peer,
+                              const ProtocolName &protocol) {
+    if (not peer->peer_kind_) {
+      peer->peer_kind_ = config_.protocol_versions.at(protocol);
+    }
   }
 }  // namespace libp2p::protocol::gossip

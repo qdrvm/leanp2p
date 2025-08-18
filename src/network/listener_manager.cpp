@@ -169,9 +169,10 @@ namespace libp2p::network {
   }
 
   void ListenerManager::listenProtocol(
-      const peer::ProtocolName &name,
       std::shared_ptr<protocol::BaseProtocol> protocol) {
-    protocols_[name] = std::move(protocol);
+    for (auto &id : protocol->getProtocolIds()) {
+      protocols_.emplace(id, std::move(protocol));
+    }
   }
 
   std::vector<peer::ProtocolName> ListenerManager::getSupportedProtocols()
@@ -253,7 +254,7 @@ namespace libp2p::network {
               this->getProtocol(proto_name);
           if (rprotocol.has_value()) {
             const auto &protocol = rprotocol.value();
-            protocol->handle(stream);
+            protocol->handle({stream, proto_name});
             continue;
           }
           log()->warn("can not negotiate protocols, {}", rprotocol.error());

@@ -134,8 +134,7 @@ namespace libp2p::host {
     // void setProtocolHandler(StreamProtocols protocols,
     //                                 StreamAndProtocolCb cb,
     //                                 ProtocolPredicate predicate = {});
-    void listenProtocol(const peer::ProtocolName &name,
-                        std::shared_ptr<protocol::BaseProtocol> protocol);
+    void listenProtocol(std::shared_ptr<protocol::BaseProtocol> protocol);
 
     /**
      * @brief Initiates connection to the peer {@param peer_info}.
@@ -155,8 +154,8 @@ namespace libp2p::host {
      * @param peer_info stream will be opened to this peer
      * @param protocols "speak" using first supported protocol
      */
-    CoroOutcome<std::shared_ptr<connection::Stream>> newStream(
-        const peer::PeerInfo &peer_info, StreamProtocols protocols);
+    CoroOutcome<StreamAndProtocol> newStream(const peer::PeerInfo &peer_info,
+                                             StreamProtocols protocols);
 
     /**
      * @brief Open new stream to the peer {@param peer} with protocol
@@ -164,13 +163,13 @@ namespace libp2p::host {
      * @param peer stream will be opened to this peer
      * @param protocols "speak" using first supported protocol
      */
-    CoroOutcome<std::shared_ptr<connection::Stream>> newStream(
-        const PeerId &peer_id, StreamProtocols protocols) {
+    CoroOutcome<StreamAndProtocol> newStream(const PeerId &peer_id,
+                                             StreamProtocols protocols) {
       co_return co_await newStream(PeerInfo{.id = peer_id},
                                    std::move(protocols));
     }
 
-    CoroOutcome<std::shared_ptr<connection::Stream>> newStream(
+    CoroOutcome<StreamAndProtocol> newStream(
         std::shared_ptr<connection::CapableConnection> connection,
         StreamProtocols protocols);
 

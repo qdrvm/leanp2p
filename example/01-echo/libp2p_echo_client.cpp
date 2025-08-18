@@ -35,8 +35,9 @@ int main(int argc, char **argv) {
   libp2p::coroSpawn(*io_context, [&]() -> libp2p::Coro<void> {
     log->info("Connect to {}", connect_info.addresses.at(0));
     auto stream =
-        (co_await host->newStream(connect_info, {echo->getProtocolId()}))
-            .value();
+        (co_await host->newStream(connect_info, echo->getProtocolIds()))
+            .value()
+            .stream;
 
     log->info("SENDING {}", message);
     (co_await libp2p::write(stream, qtils::str2byte(message))).value();

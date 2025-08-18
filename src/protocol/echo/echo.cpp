@@ -7,6 +7,7 @@
 #include <boost/asio/io_context.hpp>
 
 #include <libp2p/basic/write.hpp>
+#include <libp2p/connection/stream.hpp>
 #include <libp2p/coro/spawn.hpp>
 #include <libp2p/protocol/echo/echo.hpp>
 #include <libp2p/transport/quic/error.hpp>
@@ -15,8 +16,8 @@
 
 namespace libp2p::protocol {
 
-  void Echo::handle(std::shared_ptr<connection::Stream> stream) {
-    coroSpawn(*io_context_, doRead(stream));
+  void Echo::handle(StreamAndProtocol stream) {
+    coroSpawn(*io_context_, doRead(stream.stream));
   }
 
   Coro<void> Echo::doRead(std::shared_ptr<connection::Stream> stream) {
@@ -61,8 +62,8 @@ namespace libp2p::protocol {
     }
   }
 
-  peer::ProtocolName Echo::getProtocolId() const {
-    return "/echo/1.0.0";
+  StreamProtocols Echo::getProtocolIds() const {
+    return {"/echo/1.0.0"};
   }
 
   Echo::Echo(std::shared_ptr<boost::asio::io_context> io_context,

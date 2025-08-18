@@ -84,16 +84,16 @@ class GenericProtocolHandler : public libp2p::protocol::BaseProtocol {
         user_data_(user_data),
         host_wrapper_(host_wrapper) {}
 
-  [[nodiscard]] std::string getProtocolId() const override {
-    return protocol_id_;
+  [[nodiscard]] libp2p::StreamProtocols getProtocolIds() const override {
+    return {protocol_id_};
   }
 
   // Override the handle method from BaseProtocol
-  void handle(std::shared_ptr<libp2p::connection::Stream> stream) override {
+  void handle(libp2p::StreamAndProtocol stream) override {
     assert(handler_ && "Handler cannot be null");
     // Create a stream wrapper for the C API
     auto stream_wrapper = new libp2p_stream_t();
-    stream_wrapper->stream = stream;
+    stream_wrapper->stream = stream.stream;
     stream_wrapper->host = host_wrapper_;
 
     // Call the C callback
@@ -260,7 +260,7 @@ libp2p_error_t libp2p_host_register_protocol(libp2p_host_t *host,
 
     // Register the protocol with the host - now passing the protocol handler
     // directly
-    host->host->listenProtocol(protocol_id, protocol_handler);
+    host->host->listenProtocol(protocol_handler);
 
     return LIBP2P_SUCCESS;
   } catch (...) {
@@ -416,7 +416,7 @@ libp2p_error_t libp2p_host_new_stream(libp2p_host_t *host,
                             peer_id_result.value(), protocols);
                         if (stream_result.has_value()) {
                           auto stream_wrapper = new libp2p_stream_t();
-                          stream_wrapper->stream = stream_result.value();
+                          stream_wrapper->stream = stream_result.value().stream;
                           stream_wrapper->host = host;
                           callback(stream_wrapper, user_data);
                         } else {

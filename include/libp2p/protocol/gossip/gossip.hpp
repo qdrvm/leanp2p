@@ -63,6 +63,7 @@ namespace libp2p::protocol::gossip {
     Peer(PeerId peer_id);
 
     PeerId peer_id_;
+    std::optional<PeerKind> peer_kind_;
     std::unordered_set<TopicHash, qtils::BytesStdHash> topics_;
     std::optional<StreamPtr> stream_out_;
     std::unordered_set<StreamPtr> streams_in_;
@@ -79,11 +80,9 @@ namespace libp2p::protocol::gossip {
            std::shared_ptr<crypto::CryptoProvider> crypto_provider,
            Config config);
 
-    // Adaptor
-    peer::ProtocolName getProtocolId() const override;
-
     // BaseProtocol
-    void handle(StreamPtr stream) override;
+    StreamProtocols getProtocolIds() const override;
+    void handle(StreamAndProtocol stream) override;
 
     void start();
 
@@ -102,12 +101,15 @@ namespace libp2p::protocol::gossip {
 
     void checkWrite(const std::shared_ptr<Peer> &peer);
 
+    void updatePeerKind(const PeerPtr &peer, const ProtocolName &protocol);
+
    private:
     std::shared_ptr<boost::asio::io_context> io_context_;
     std::shared_ptr<host::BasicHost> host_;
     std::shared_ptr<peer::IdentityManager> id_mgr_;
     std::shared_ptr<crypto::CryptoProvider> crypto_provider_;
     Config config_;
+    StreamProtocols protocols_;
     event::Handle on_peer_sub_;
     std::unordered_map<TopicHash, std::shared_ptr<Topic>, qtils::BytesStdHash>
         topics_;

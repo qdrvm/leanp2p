@@ -42,9 +42,6 @@ namespace libp2p::transport {
                   const peer::IdentityManager &id_mgr,
                   std::shared_ptr<crypto::marshaller::KeyMarshaller> key_codec);
 
-    // Adaptor
-    peer::ProtocolName getProtocolId() const override;
-
     // TransportAdaptor
     CoroOutcome<std::shared_ptr<connection::CapableConnection>> dial(
         const PeerId &peer, Multiaddress address) override;

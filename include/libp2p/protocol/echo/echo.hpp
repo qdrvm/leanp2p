@@ -23,10 +23,10 @@ namespace libp2p::protocol {
          EchoConfig config = EchoConfig{});
 
     // NOLINTNEXTLINE(modernize-use-nodiscard)
-    peer::ProtocolName getProtocolId() const override;
+    StreamProtocols getProtocolIds() const override;
 
     // handle incoming stream
-    void handle(std::shared_ptr<connection::Stream> stream) override;
+    void handle(StreamAndProtocol stream) override;
 
     // create client session, which simplifies writing tests and interaction
     // with server.
