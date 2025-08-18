@@ -49,5 +49,12 @@ namespace libp2p::protocol::gossip {
     StreamProtocols protocols{
         kProtocolFloodsub,
     };
+
+    /// Duplicates are prevented by storing message id's of known messages in an
+    /// LRU time cache. This settings sets the time period that messages are
+    /// stored in the cache. Duplicates can be received if duplicate messages
+    /// are sent at a time greater than this setting apart. The default is 1
+    /// minute.
+    std::chrono::seconds duplicate_cache_time{60};
   };
 }  // namespace libp2p::protocol::gossip

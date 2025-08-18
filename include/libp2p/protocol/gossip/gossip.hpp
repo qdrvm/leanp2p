@@ -11,6 +11,7 @@
 #include <libp2p/event/bus.hpp>
 #include <libp2p/protocol/base_protocol.hpp>
 #include <libp2p/protocol/gossip/config.hpp>
+#include <libp2p/protocol/gossip/time_cache.hpp>
 #include <qtils/bytes_std_hash.hpp>
 #include <unordered_set>
 
@@ -112,6 +113,6 @@ namespace libp2p::protocol::gossip {
         topics_;
     std::unordered_map<PeerId, std::shared_ptr<Peer>> peers_;
     PublishConfigSigning publish_config_;
-    std::unordered_set<MessageId, qtils::BytesStdHash> duplicate_cache_;
+    DuplicateCache<MessageId, qtils::BytesStdHash> duplicate_cache_;
   };
 }  // namespace libp2p::protocol::gossip

@@ -75,7 +75,8 @@ namespace libp2p::protocol::gossip {
             .last_seq_no = static_cast<Seqno>(std::chrono::nanoseconds{
                 std::chrono::system_clock::now().time_since_epoch()}
                                                   .count()),
-        } {
+        },
+        duplicate_cache_{config.duplicate_cache_time} {
     assert(config_.message_id_fn);
   }
 
@@ -176,7 +177,7 @@ namespace libp2p::protocol::gossip {
     if (duplicate_cache_.contains(message_id)) {
       return;
     }
-    duplicate_cache_.emplace(message_id);
+    duplicate_cache_.insert(message_id);
     // TODO: mcache
     broadcast(std::nullopt, message);
   }
@@ -244,7 +245,7 @@ namespace libp2p::protocol::gossip {
       }
       auto &topic = topic_it->second;
       auto message_id = config_.message_id_fn(message);
-      if (not duplicate_cache_.emplace(message_id).second) {
+      if (not duplicate_cache_.insert(message_id)) {
         continue;
       }
       topic->receive_channel_.send(message.data);
