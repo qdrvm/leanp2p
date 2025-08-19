@@ -14,6 +14,7 @@ namespace libp2p::protocol::gossip {
   using TopicHash = Bytes;
   using MessageId = Bytes;
   using Seqno = uint64_t;
+  using Backoff = std::chrono::seconds;
 
   inline const ProtocolName kProtocolFloodsub = "/floodsub/1.0.0";
   inline const ProtocolName kProtocolGossipsub = "/meshsub/1.0.0";
@@ -50,9 +51,20 @@ namespace libp2p::protocol::gossip {
 
   MessageId defaultMessageIdFn(const Message &message);
 
+  struct TopicMeshConfig {
+    size_t mesh_n = 6;
+    size_t mesh_n_low = 5;
+    size_t mesh_n_high = 12;
+    size_t mesh_outbound_min = 2;
+  };
+
   struct Config {
     // Fixes default field values with boost::di.
     Config() = default;
+
+    size_t mesh_n_for_topic(const TopicHash &topic_hash) const;
+    size_t mesh_n_low_for_topic(const TopicHash &topic_hash) const;
+    size_t mesh_n_high_for_topic(const TopicHash &topic_hash) const;
 
     MessageIdFn message_id_fn = defaultMessageIdFn;
     ValidationMode validation_mode = ValidationMode::Strict;
@@ -72,5 +84,9 @@ namespace libp2p::protocol::gossip {
     /// are sent at a time greater than this setting apart. The default is 1
     /// minute.
     std::chrono::seconds duplicate_cache_time{60};
+
+    TopicMeshConfig default_mesh_params;
+
+    Backoff prune_backoff{60};
   };
 }  // namespace libp2p::protocol::gossip

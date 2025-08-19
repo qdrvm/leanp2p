@@ -11,6 +11,7 @@
 #include <libp2p/basic/read_varint.hpp>
 #include <libp2p/basic/write_varint.hpp>
 #include <libp2p/common/protobuf.hpp>
+#include <libp2p/common/saturating.hpp>
 #include <libp2p/common/weak_macro.hpp>
 #include <libp2p/coro/spawn.hpp>
 #include <libp2p/coro/yield.hpp>
@@ -42,6 +43,18 @@ namespace libp2p::protocol::gossip {
     return qtils::asVec(qtils::str2byte(std::string_view{str}));
   }
 
+  size_t Config::mesh_n_for_topic(const TopicHash &topic_hash) const {
+    return default_mesh_params.mesh_n;
+  }
+
+  size_t Config::mesh_n_low_for_topic(const TopicHash &topic_hash) const {
+    return default_mesh_params.mesh_n_low;
+  }
+
+  size_t Config::mesh_n_high_for_topic(const TopicHash &topic_hash) const {
+    return default_mesh_params.mesh_n_high;
+  }
+
   void Rpc::subscribe(TopicHash topic_hash, bool subscribe) {
     auto it = subscriptions.emplace(topic_hash, subscribe).first;
     if (it->second != subscribe) {
@@ -61,6 +74,25 @@ namespace libp2p::protocol::gossip {
 
   Peer::Peer(PeerId peer_id) : peer_id_{std::move(peer_id)} {}
 
+  bool Peer::isFloodsub() const {
+    return not peer_kind_.has_value()
+        or peer_kind_.value() == PeerKind::Floodsub;
+  }
+
+  bool Peer::isGossipsub() const {
+    return peer_kind_.has_value() and peer_kind_.value() >= PeerKind::Gossipsub;
+  }
+
+  bool Peer::isGossipsubv1_1() const {
+    return peer_kind_.has_value()
+       and peer_kind_.value() >= PeerKind::Gossipsubv1_1;
+  }
+
+  bool Peer::isGossipsubv1_2() const {
+    return peer_kind_.has_value()
+       and peer_kind_.value() >= PeerKind::Gossipsubv1_2;
+  }
+
   Gossip::Gossip(std::shared_ptr<boost::asio::io_context> io_context,
                  std::shared_ptr<host::BasicHost> host,
                  std::shared_ptr<peer::IdentityManager> id_mgr,
@@ -79,8 +111,8 @@ namespace libp2p::protocol::gossip {
         duplicate_cache_{config.duplicate_cache_time} {
     assert(config_.message_id_fn);
 
-    for (auto &p : config_.protocol_versions) {
-      protocols_.emplace_back(p.first);
+    for (auto &protocol : config_.protocol_versions | std::views::keys) {
+      protocols_.emplace_back(protocol);
     }
     std::ranges::sort(protocols_,
                       [&](const ProtocolName &l, const ProtocolName &r) {
@@ -143,8 +175,8 @@ namespace libp2p::protocol::gossip {
         peer->stream_out_ = stream;
         if (not self->topics_.empty()) {
           auto &message = self->getBatch(peer);
-          for (auto &p : self->topics_) {
-            message.subscribe(p.first, true);
+          for (auto &topic_hash : self->topics_ | std::views::keys) {
+            message.subscribe(topic_hash, true);
           }
         }
       });
@@ -160,10 +192,20 @@ namespace libp2p::protocol::gossip {
       auto topic = std::make_shared<Topic>(
           Topic{weak_from_this(), topic_hash, {*io_context_}});
       topic_it = topics_.emplace(topic_hash, topic).first;
-      for (auto &p : peers_) {
-        getBatch(p.second).subscribe(topic_hash, true);
+      for (auto &peer : peers_ | std::views::values) {
+        if (peer->topics_.contains(topic_hash)) {
+          topic->peers_.emplace(peer);
+        }
+        getBatch(peer).subscribe(topic_hash, true);
       }
-      // TODO: mesh
+      for (auto &peer : choose_peers_.choose(
+               topic->peers_,
+               [&](const PeerPtr &peer) {
+                 return not topic->mesh_peers_.contains(peer);
+               },
+               config_.mesh_n_for_topic(topic_hash))) {
+        graft(*topic, peer);
+      }
     }
     return topic_it->second;
   }
@@ -188,7 +230,7 @@ namespace libp2p::protocol::gossip {
     }
     duplicate_cache_.insert(message_id);
     // TODO: mcache
-    broadcast(std::nullopt, message);
+    broadcast(topic, std::nullopt, message);
   }
 
   bool Gossip::onMessage(const std::shared_ptr<Peer> &peer, BytesIn encoded) {
@@ -200,14 +242,30 @@ namespace libp2p::protocol::gossip {
 
     for (auto &pb_subscribe : pb_message.subscriptions()) {
       auto topic_hash = qtils::asVec(qtils::str2byte(pb_subscribe.topic_id()));
+      auto topic_it = topics_.find(topic_hash);
       if (pb_subscribe.subscribe()) {
         std::println("Subscribed {} {}",
                      peer->peer_id_.toBase58(),
                      qtils::byte2str(topic_hash));
         peer->topics_.emplace(topic_hash);
-        // TODO: mesh
+        if (topic_it != topics_.end()) {
+          auto &topic = topic_it->second;
+          topic->peers_.emplace(peer);
+
+          if (peer->isGossipsub()
+              and topic->mesh_peers_.size()
+                      < config_.mesh_n_low_for_topic(topic_hash)
+              and not topic->mesh_peers_.contains(peer)) {
+            graft(*topic, peer);
+          }
+        }
       } else {
         peer->topics_.erase(topic_hash);
+        if (topic_it != topics_.end()) {
+          auto &topic = topic_it->second;
+          topic->peers_.erase(peer);
+        }
+        remove_peer_from_mesh(topic_hash, peer, std::nullopt, false);
       }
     }
 
@@ -259,25 +317,83 @@ namespace libp2p::protocol::gossip {
       }
       topic->receive_channel_.send(message.data);
       // TODO: mcache
-      broadcast(peer->peer_id_, message);
+      broadcast(*topic, peer->peer_id_, message);
+    }
+
+    for (auto &pb_graft : pb_message.control().graft()) {
+      if (not peer->isGossipsub()) {
+        return false;
+      }
+      auto topic_hash = qtils::asVec(qtils::str2byte(pb_graft.topic_id()));
+      peer->topics_.emplace(topic_hash);
+
+      auto topic_it = topics_.find(topic_hash);
+      if (topic_it == topics_.end()) {
+        continue;
+      }
+      auto &topic = topic_it->second;
+      topic->peers_.emplace(peer);
+
+      if (topic->mesh_peers_.contains(peer)) {
+        continue;
+      }
+      if (topic->mesh_peers_.size()
+          < config_.mesh_n_high_for_topic(topic_hash)) {
+        topic->mesh_peers_.emplace(peer);
+      } else {
+        make_prune(topic_hash, peer);
+      }
+    }
+
+    for (auto &pb_prune : pb_message.control().prune()) {
+      if (not peer->isGossipsub()) {
+        return false;
+      }
+      auto topic_hash = qtils::asVec(qtils::str2byte(pb_prune.topic_id()));
+      std::optional<Backoff> backoff;
+      if (pb_prune.has_backoff()) {
+        backoff = Backoff{pb_prune.backoff()};
+      }
+      remove_peer_from_mesh(topic_hash, peer, backoff, true);
     }
 
     return true;
   }
 
-  void Gossip::broadcast(std::optional<PeerId> from, const Message &message) {
-    for (auto &[peer_id, peer] : peers_) {
-      if (not peer->topics_.contains(message.topic)) {
-        continue;
-      }
-      // TODO: floodsub or mesh peers
+  void Gossip::broadcast(Topic &topic,
+                         std::optional<PeerId> from,
+                         const Message &message) {
+    auto publish = not from.has_value();
+    auto add_peer = [&](PeerPtr peer) {
       if (from == peer->peer_id_) {
-        continue;
+        return;
       }
       if (message.from == peer->peer_id_) {
-        continue;
+        return;
       }
       getBatch(peer).publish.emplace_back(message);
+    };
+    for (auto &peer : topic.peers_) {
+      if (peer->isFloodsub()) {
+        add_peer(peer);
+      }
+    }
+    for (auto &peer : topic.mesh_peers_) {
+      add_peer(peer);
+    }
+    if (publish) {
+      if (auto more =
+              saturating_sub(config_.mesh_n_for_topic(topic.topic_hash_),
+                             topic.mesh_peers_.size())) {
+        for (auto &peer : choose_peers_.choose(
+                 topic.peers_,
+                 [&](const PeerPtr &peer) {
+                   return not topic.mesh_peers_.contains(peer);
+                 },
+                 more)) {
+          add_peer(peer);
+        }
+      }
     }
   }
 
@@ -320,7 +436,8 @@ namespace libp2p::protocol::gossip {
 
         gossipsub::pb::RPC pb_message;
         assert(not message->subscriptions.empty()
-               or not message->publish.empty());
+               or not message->publish.empty() or not message->graft.empty()
+               or not message->prune.empty());
 
         for (auto &[topic_hash, subscribe] : message->subscriptions) {
           auto &pb_subscription = *pb_message.add_subscriptions();
@@ -362,6 +479,19 @@ namespace libp2p::protocol::gossip {
           *pb_publish.mutable_signature() = qtils::byte2str(signature);
         }
 
+        for (auto &topic_hash : message->graft) {
+          auto &pb_graft = *pb_message.mutable_control()->add_graft();
+          *pb_graft.mutable_topic_id() = qtils::byte2str(topic_hash);
+        }
+
+        for (auto &[topic_hash, backoff] : message->prune) {
+          auto &pb_prune = *pb_message.mutable_control()->add_prune();
+          *pb_prune.mutable_topic_id() = qtils::byte2str(topic_hash);
+          if (backoff.has_value()) {
+            pb_prune.set_backoff(backoff->count());
+          }
+        }
+
         auto encoded = protobufEncode(pb_message);
         assert(not encoded.empty());
         self.reset();
@@ -380,6 +510,39 @@ namespace libp2p::protocol::gossip {
                               const ProtocolName &protocol) {
     if (not peer->peer_kind_) {
       peer->peer_kind_ = config_.protocol_versions.at(protocol);
+    }
+  }
+
+  void Gossip::graft(Topic &topic, const PeerPtr &peer) {
+    assert(not topic.mesh_peers_.contains(peer));
+    topic.mesh_peers_.emplace(peer);
+    getBatch(peer).graft.emplace(topic.topic_hash_);
+  }
+
+  void Gossip::make_prune(const TopicHash &topic_hash, const PeerPtr &peer) {
+    if (not peer->isGossipsub()) {
+      return;
+    }
+    std::optional<Backoff> backoff;
+    if (peer->isGossipsubv1_1()) {
+      backoff = config_.prune_backoff;
+      // TODO: update_backoff()
+    }
+    getBatch(peer).prune.emplace(topic_hash, backoff);
+  }
+
+  void Gossip::remove_peer_from_mesh(const TopicHash &topic_hash,
+                                     const PeerPtr &peer,
+                                     std::optional<Backoff> backoff,
+                                     bool always_update_backoff) {
+    auto peer_removed = false;
+    auto topic_it = topics_.find(topic_hash);
+    if (topic_it != topics_.end()) {
+      auto &topic = topic_it->second;
+      peer_removed = topic->mesh_peers_.erase(peer) != 0;
+    }
+    if (always_update_backoff or peer_removed) {
+      // TODO: update_backoff()
     }
   }
 }  // namespace libp2p::protocol::gossip

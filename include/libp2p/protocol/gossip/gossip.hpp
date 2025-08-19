@@ -13,6 +13,7 @@
 #include <libp2p/protocol/gossip/config.hpp>
 #include <libp2p/protocol/gossip/time_cache.hpp>
 #include <qtils/bytes_std_hash.hpp>
+#include <random>
 #include <unordered_set>
 
 namespace boost::asio {
@@ -32,9 +33,11 @@ namespace libp2p::peer {
 }  // namespace libp2p::peer
 
 namespace libp2p::protocol::gossip {
-  using StreamPtr = std::shared_ptr<connection::Stream>;
-
+  class Peer;
   class Gossip;
+
+  using PeerPtr = std::shared_ptr<Peer>;
+  using StreamPtr = std::shared_ptr<connection::Stream>;
 
   struct PublishConfigSigning {
     Seqno last_seq_no;
@@ -45,6 +48,9 @@ namespace libp2p::protocol::gossip {
 
     std::unordered_map<TopicHash, bool, qtils::BytesStdHash> subscriptions;
     std::vector<Message> publish;
+    std::unordered_set<TopicHash, qtils::BytesStdHash> graft;
+    std::unordered_map<TopicHash, std::optional<Backoff>, qtils::BytesStdHash>
+        prune;
   };
 
   class Topic {
@@ -56,11 +62,18 @@ namespace libp2p::protocol::gossip {
     std::weak_ptr<Gossip> weak_gossip_;
     TopicHash topic_hash_;
     CoroOutcomeChannel<Bytes> receive_channel_;
+    std::unordered_set<PeerPtr> peers_;
+    std::unordered_set<PeerPtr> mesh_peers_;
   };
 
   class Peer {
    public:
     Peer(PeerId peer_id);
+
+    bool isFloodsub() const;
+    bool isGossipsub() const;
+    bool isGossipsubv1_1() const;
+    bool isGossipsubv1_2() const;
 
     PeerId peer_id_;
     std::optional<PeerKind> peer_kind_;
@@ -69,6 +82,40 @@ namespace libp2p::protocol::gossip {
     std::unordered_set<StreamPtr> streams_in_;
     std::optional<Rpc> batch_;
     bool writing_ = false;
+  };
+
+  class ChoosePeers {
+   public:
+    std::deque<PeerPtr> choose(auto &&all,
+                               const std::invocable<PeerPtr> auto &predicate,
+                               const std::invocable<size_t> auto &get_count) {
+      std::deque<PeerPtr> chosen;
+      for (auto &peer : all) {
+        if (peer->isGossipsub() and predicate(peer)) {
+          chosen.emplace_back(peer);
+        }
+      }
+      std::ranges::shuffle(chosen, random_);
+      auto count = get_count(chosen.size());
+      if (chosen.size() > count) {
+        chosen.resize(count);
+      }
+      return chosen;
+    }
+    std::deque<PeerPtr> choose(auto &&all,
+                               const std::invocable<PeerPtr> auto &predicate,
+                               size_t count) {
+      return choose(std::forward<decltype(all)>(all), predicate, [&](size_t) {
+        return count;
+      });
+    }
+
+    void shuffle(auto &&r) {
+      std::ranges::shuffle(std::forward<decltype(r)>(r), random_);
+    }
+
+   private:
+    std::default_random_engine random_;
   };
 
   class Gossip : public std::enable_shared_from_this<Gossip>,
@@ -91,7 +138,9 @@ namespace libp2p::protocol::gossip {
 
     void publish(Topic &topic, BytesIn data);
 
-    void broadcast(std::optional<PeerId> from, const Message &message);
+    void broadcast(Topic &topic,
+                   std::optional<PeerId> from,
+                   const Message &message);
 
     bool onMessage(const std::shared_ptr<Peer> &peer, BytesIn encoded);
 
@@ -102,6 +151,15 @@ namespace libp2p::protocol::gossip {
     void checkWrite(const std::shared_ptr<Peer> &peer);
 
     void updatePeerKind(const PeerPtr &peer, const ProtocolName &protocol);
+
+    void graft(Topic &topic, const PeerPtr &peer);
+
+    void make_prune(const TopicHash &topic_hash, const PeerPtr &peer);
+
+    void remove_peer_from_mesh(const TopicHash &topic_hash,
+                               const PeerPtr &peer,
+                               std::optional<Backoff> backoff,
+                               bool always_update_backoff);
 
    private:
     std::shared_ptr<boost::asio::io_context> io_context_;
@@ -116,5 +174,6 @@ namespace libp2p::protocol::gossip {
     std::unordered_map<PeerId, std::shared_ptr<Peer>> peers_;
     PublishConfigSigning publish_config_;
     DuplicateCache<MessageId, qtils::BytesStdHash> duplicate_cache_;
+    ChoosePeers choose_peers_;
   };
 }  // namespace libp2p::protocol::gossip

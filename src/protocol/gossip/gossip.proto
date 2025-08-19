@@ -10,6 +10,8 @@ message RPC {
     optional bool subscribe = 1;
     optional string topic_id = 2;
   }
+
+  optional ControlMessage control = 3;
 }
 
 message Message {
@@ -19,4 +21,18 @@ message Message {
   required string topic = 4;
   optional bytes signature = 5;
   optional bytes key = 6;
+}
+
+message ControlMessage {
+  repeated ControlGraft graft = 3;
+  repeated ControlPrune prune = 4;
+}
+
+message ControlGraft {
+  optional string topic_id = 1;
+}
+
+message ControlPrune {
+  optional string topic_id = 1;
+  optional uint64 backoff = 3;
 }
