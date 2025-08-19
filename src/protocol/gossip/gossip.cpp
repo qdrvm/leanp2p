@@ -63,6 +63,35 @@ namespace libp2p::protocol::gossip {
     }
   }
 
+  History::History(size_t slots) {
+    assert(slots > 0);
+    slots_.resize(slots);
+  }
+
+  void History::add(const MessageId &message_id) {
+    slots_.front().emplace_back(message_id);
+  }
+
+  std::vector<MessageId> History::shift() {
+    auto removed = std::move(slots_.back());
+    slots_.pop_back();
+    slots_.emplace_front();
+    return removed;
+  }
+
+  std::vector<MessageId> History::get(size_t slots) {
+    std::vector<MessageId> result;
+    size_t i = 0;
+    for (auto &slot : slots_) {
+      if (i >= slots) {
+        break;
+      }
+      result.append_range(slot);
+      ++i;
+    }
+    return result;
+  }
+
   CoroOutcome<Bytes> Topic::receive() {
     co_return co_await receive_channel_.receive();
   }
@@ -194,8 +223,10 @@ namespace libp2p::protocol::gossip {
   std::shared_ptr<Topic> Gossip::subscribe(TopicHash topic_hash) {
     auto topic_it = topics_.find(topic_hash);
     if (topic_it == topics_.end()) {
-      auto topic = std::make_shared<Topic>(
-          Topic{weak_from_this(), topic_hash, {*io_context_}});
+      auto topic = std::make_shared<Topic>(Topic{weak_from_this(),
+                                                 topic_hash,
+                                                 {*io_context_},
+                                                 {config_.history_length}});
       topic_it = topics_.emplace(topic_hash, topic).first;
       for (auto &peer : peers_ | std::views::values) {
         if (peer->topics_.contains(topic_hash)) {
@@ -234,7 +265,8 @@ namespace libp2p::protocol::gossip {
       return;
     }
     duplicate_cache_.insert(message_id);
-    // TODO: mcache
+    message_cache_.emplace(message_id, MessageCacheEntry{message});
+    topic.history_.add(message_id);
     broadcast(topic, std::nullopt, message);
   }
 
@@ -318,10 +350,12 @@ namespace libp2p::protocol::gossip {
       auto &topic = topic_it->second;
       auto message_id = config_.message_id_fn(message);
       if (not duplicate_cache_.insert(message_id)) {
+        // TODO: mcache.observe_duplicate()
         continue;
       }
       topic->receive_channel_.send(message.data);
-      // TODO: mcache
+      message_cache_.emplace(message_id, MessageCacheEntry{message});
+      topic->history_.add(message_id);
       broadcast(*topic, peer->peer_id_, message);
     }
 
@@ -360,6 +394,47 @@ namespace libp2p::protocol::gossip {
         backoff = Backoff{pb_prune.backoff()};
       }
       remove_peer_from_mesh(topic_hash, peer, backoff, true);
+    }
+
+    for (auto &pb_ihave : pb_message.control().ihave()) {
+      if (not peer->isGossipsub()) {
+        return false;
+      }
+      auto topic_hash = qtils::asVec(qtils::str2byte(pb_ihave.topic_id()));
+      if (not topics_.contains(topic_hash)) {
+        continue;
+      }
+      for (auto &pb_message : pb_ihave.message_ids()) {
+        auto message_id = qtils::asVec(qtils::str2byte(pb_message));
+        if (duplicate_cache_.contains(message_id)) {
+          continue;
+        }
+        // TODO: gossip_promises
+        // TODO: count_sent_iwant
+        // TODO: max_ihave_length
+        // TODO: shuffle
+        // TODO: gossip_promises.add_promise
+        getBatch(peer).iwant.emplace(message_id);
+      }
+    }
+
+    for (auto &pb_iwant : pb_message.control().iwant()) {
+      if (not peer->isGossipsub()) {
+        return false;
+      }
+      for (auto &pb_message : pb_iwant.message_ids()) {
+        auto message_id = qtils::asVec(qtils::str2byte(pb_message));
+        auto cache_it = message_cache_.find(message_id);
+        if (cache_it != message_cache_.end()) {
+          auto &count = cache_it->second.iwant[peer->peer_id_];
+          ++count;
+          if (count > config_.gossip_retransimission) {
+            continue;
+          }
+          // TODO: dont_send
+          getBatch(peer).publish.emplace_back(cache_it->second.message);
+        }
+      }
     }
 
     return true;
@@ -442,7 +517,8 @@ namespace libp2p::protocol::gossip {
         gossipsub::pb::RPC pb_message;
         assert(not message->subscriptions.empty()
                or not message->publish.empty() or not message->graft.empty()
-               or not message->prune.empty());
+               or not message->prune.empty() or not message->ihave.empty()
+               or not message->iwant.empty());
 
         for (auto &[topic_hash, subscribe] : message->subscriptions) {
           auto &pb_subscription = *pb_message.add_subscriptions();
@@ -494,6 +570,23 @@ namespace libp2p::protocol::gossip {
           *pb_prune.mutable_topic_id() = qtils::byte2str(topic_hash);
           if (backoff.has_value()) {
             pb_prune.set_backoff(backoff->count());
+          }
+        }
+
+        for (auto &[topic_hash, messages] : message->ihave) {
+          auto &pb_ihave = *pb_message.mutable_control()->add_ihave();
+          *pb_ihave.mutable_topic_id() = qtils::byte2str(topic_hash);
+          auto &pb_messages = *pb_ihave.mutable_message_ids();
+          for (auto &message : messages) {
+            *pb_messages.Add() = qtils::byte2str(message);
+          }
+        }
+
+        if (not message->iwant.empty()) {
+          auto &pb_messages =
+              *pb_message.mutable_control()->add_iwant()->mutable_message_ids();
+          for (auto &message : message->iwant) {
+            *pb_messages.Add() = qtils::byte2str(message);
           }
         }
 
@@ -593,8 +686,41 @@ namespace libp2p::protocol::gossip {
         // TODO: opportunistic graft
       }
 
+      emit_gossip();
+      for (auto &topic : topics_ | std::views::values) {
+        for (auto &message_id : topic->history_.shift()) {
+          message_cache_.erase(message_id);
+        }
+      }
+
       timer.expires_after(config_.heartbeat_interval);
       co_await timer.async_wait(boost::asio::use_awaitable);
+    }
+  }
+
+  void Gossip::emit_gossip() {
+    for (auto &[topic_hash, topic] : topics_) {
+      auto message_ids = topic->history_.get(config_.history_gossip);
+      if (message_ids.empty()) {
+        continue;
+      }
+      for (auto &peer : choose_peers_.choose(
+               topic->peers_,
+               [&](const PeerPtr &peer) {
+                 // TODO: score
+                 return not topic->mesh_peers_.contains(peer);
+               },
+               [&](size_t n) {
+                 return std::max<size_t>(config_.gossip_lazy,
+                                         config_.gossip_factor * n);
+               })) {
+        auto peer_message_ids = message_ids;
+        choose_peers_.shuffle(message_ids);
+        if (peer_message_ids.size() > config_.max_ihave_length) {
+          peer_message_ids.resize(config_.max_ihave_length);
+        }
+        getBatch(peer).ihave[topic_hash] = std::move(peer_message_ids);
+      }
     }
   }
 }  // namespace libp2p::protocol::gossip

@@ -51,6 +51,24 @@ namespace libp2p::protocol::gossip {
     std::unordered_set<TopicHash, qtils::BytesStdHash> graft;
     std::unordered_map<TopicHash, std::optional<Backoff>, qtils::BytesStdHash>
         prune;
+    std::unordered_map<TopicHash, std::vector<MessageId>, qtils::BytesStdHash>
+        ihave;
+    std::unordered_set<MessageId, qtils::BytesStdHash> iwant;
+  };
+
+  class History {
+   public:
+    History(size_t slots);
+    void add(const MessageId &message_id);
+    std::vector<MessageId> shift();
+    std::vector<MessageId> get(size_t slots);
+
+    std::deque<std::vector<MessageId>> slots_;
+  };
+
+  struct MessageCacheEntry {
+    Message message;
+    std::unordered_map<PeerId, size_t> iwant;
   };
 
   class Topic {
@@ -62,6 +80,7 @@ namespace libp2p::protocol::gossip {
     std::weak_ptr<Gossip> weak_gossip_;
     TopicHash topic_hash_;
     CoroOutcomeChannel<Bytes> receive_channel_;
+    History history_;
     std::unordered_set<PeerPtr> peers_;
     std::unordered_set<PeerPtr> mesh_peers_;
   };
@@ -164,6 +183,8 @@ namespace libp2p::protocol::gossip {
    private:
     Coro<void> heartbeat();
 
+    void emit_gossip();
+
     std::shared_ptr<boost::asio::io_context> io_context_;
     std::shared_ptr<host::BasicHost> host_;
     std::shared_ptr<peer::IdentityManager> id_mgr_;
@@ -177,5 +198,7 @@ namespace libp2p::protocol::gossip {
     PublishConfigSigning publish_config_;
     DuplicateCache<MessageId, qtils::BytesStdHash> duplicate_cache_;
     ChoosePeers choose_peers_;
+    std::unordered_map<MessageId, MessageCacheEntry, qtils::BytesStdHash>
+        message_cache_;
   };
 }  // namespace libp2p::protocol::gossip

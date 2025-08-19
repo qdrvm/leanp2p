@@ -24,8 +24,19 @@ message Message {
 }
 
 message ControlMessage {
+  repeated ControlIHave ihave = 1;
+  repeated ControlIWant iwant = 2;
   repeated ControlGraft graft = 3;
   repeated ControlPrune prune = 4;
+}
+
+message ControlIHave {
+  optional string topic_id = 1;
+  repeated bytes message_ids = 2;
+}
+
+message ControlIWant {
+  repeated bytes message_ids = 1;
 }
 
 message ControlGraft {

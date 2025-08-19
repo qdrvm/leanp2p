@@ -92,5 +92,15 @@ namespace libp2p::protocol::gossip {
     std::chrono::seconds heartbeat_interval{1};
 
     size_t retain_scores = 4;
+
+    size_t history_length = 5;
+    size_t history_gossip = 3;
+
+    size_t gossip_retransimission = 3;
+
+    size_t gossip_lazy = 6;
+    double gossip_factor = 0.25;
+
+    size_t max_ihave_length = 5000;
   };
 }  // namespace libp2p::protocol::gossip
