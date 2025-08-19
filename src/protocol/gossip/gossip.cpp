@@ -6,6 +6,7 @@
 
 #include <generated/protocol/gossip/gossip.pb.h>
 #include <boost/asio/io_context.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <boost/endian/conversion.hpp>
 #include <libp2p/basic/encode_varint.hpp>
 #include <libp2p/basic/read_varint.hpp>
@@ -184,6 +185,10 @@ namespace libp2p::protocol::gossip {
     on_peer_sub_ = host_->getBus()
                        .getChannel<event::network::OnNewConnectionChannel>()
                        .subscribe(on_peer);
+
+    coroSpawn(*io_context_, [self{shared_from_this()}]() -> Coro<void> {
+      co_await self->heartbeat();
+    });
   }
 
   std::shared_ptr<Topic> Gossip::subscribe(TopicHash topic_hash) {
@@ -543,6 +548,53 @@ namespace libp2p::protocol::gossip {
     }
     if (always_update_backoff or peer_removed) {
       // TODO: update_backoff()
+    }
+  }
+
+  Coro<void> Gossip::heartbeat() {
+    boost::asio::steady_timer timer{*io_context_};
+    while (true) {
+      for (auto &[topic_hash, topic] : topics_) {
+        // TODO: remove negative score from mesh
+
+        auto mesh_n = config_.mesh_n_for_topic(topic_hash);
+        if (topic->mesh_peers_.size()
+            < config_.mesh_n_low_for_topic(topic_hash)) {
+          for (auto &peer : choose_peers_.choose(
+                   topic->peers_,
+                   [&](const PeerPtr &peer) {
+                     return not topic->mesh_peers_.contains(peer);
+                   },
+                   saturating_sub(config_.mesh_n_for_topic(topic_hash),
+                                  topic->mesh_peers_.size()))) {
+            graft(*topic, peer);
+          }
+        } else if (topic->mesh_peers_.size()
+                   > config_.mesh_n_high_for_topic(topic_hash)) {
+          std::vector<PeerPtr> shuffled;
+          shuffled.append_range(topic->mesh_peers_);
+          choose_peers_.shuffle(shuffled);
+          // TODO: sort score
+          choose_peers_.shuffle(std::span{shuffled}.first(
+              saturating_sub(shuffled.size(), config_.retain_scores)));
+          for (auto &peer : shuffled) {
+            if (topic->mesh_peers_.size() <= mesh_n) {
+              break;
+            }
+            // TODO: outbound
+            topic->mesh_peers_.erase(peer);
+            make_prune(topic_hash, peer);
+          }
+        }
+        if (topic->mesh_peers_.size()
+            >= config_.mesh_n_low_for_topic(topic_hash)) {
+          // TODO: outbound
+        }
+        // TODO: opportunistic graft
+      }
+
+      timer.expires_after(config_.heartbeat_interval);
+      co_await timer.async_wait(boost::asio::use_awaitable);
     }
   }
 }  // namespace libp2p::protocol::gossip

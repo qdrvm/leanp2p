@@ -88,5 +88,9 @@ namespace libp2p::protocol::gossip {
     TopicMeshConfig default_mesh_params;
 
     Backoff prune_backoff{60};
+
+    std::chrono::seconds heartbeat_interval{1};
+
+    size_t retain_scores = 4;
   };
 }  // namespace libp2p::protocol::gossip

@@ -162,6 +162,8 @@ namespace libp2p::protocol::gossip {
                                bool always_update_backoff);
 
    private:
+    Coro<void> heartbeat();
+
     std::shared_ptr<boost::asio::io_context> io_context_;
     std::shared_ptr<host::BasicHost> host_;
     std::shared_ptr<peer::IdentityManager> id_mgr_;
