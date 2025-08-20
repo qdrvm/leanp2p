@@ -65,6 +65,7 @@ namespace libp2p::protocol::gossip {
     size_t mesh_n_for_topic(const TopicHash &topic_hash) const;
     size_t mesh_n_low_for_topic(const TopicHash &topic_hash) const;
     size_t mesh_n_high_for_topic(const TopicHash &topic_hash) const;
+    size_t mesh_outbound_min_for_topic(const TopicHash &topic_hash) const;
 
     MessageIdFn message_id_fn = defaultMessageIdFn;
     ValidationMode validation_mode = ValidationMode::Strict;

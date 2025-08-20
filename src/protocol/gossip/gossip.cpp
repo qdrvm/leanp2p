@@ -80,6 +80,11 @@ namespace libp2p::protocol::gossip {
     return default_mesh_params.mesh_n_high;
   }
 
+  size_t Config::mesh_outbound_min_for_topic(
+      const TopicHash &topic_hash) const {
+    return default_mesh_params.mesh_outbound_min;
+  }
+
   void Rpc::subscribe(TopicHash topic_hash, bool subscribe) {
     auto it = subscriptions.emplace(topic_hash, subscribe).first;
     if (it->second != subscribe) {
@@ -171,7 +176,18 @@ namespace libp2p::protocol::gossip {
     }
   }
 
-  Peer::Peer(PeerId peer_id) : peer_id_{std::move(peer_id)} {}
+  size_t Topic::meshOutCount() {
+    size_t count = 0;
+    for (auto &peer : mesh_peers_) {
+      if (peer->out_) {
+        ++count;
+      }
+    }
+    return count;
+  }
+
+  Peer::Peer(PeerId peer_id, bool out)
+      : peer_id_{std::move(peer_id)}, out_{out} {}
 
   bool Peer::isFloodsub() const {
     return not peer_kind_.has_value()
@@ -227,7 +243,12 @@ namespace libp2p::protocol::gossip {
   void Gossip::handle(StreamAndProtocol stream_and_protocol) {
     auto &[stream, protocol] = stream_and_protocol;
     auto peer_id = stream->remotePeerId();
-    auto peer = getPeer(peer_id);
+    auto peer_it = peers_.find(peer_id);
+    if (peer_it == peers_.end()) {
+      stream_and_protocol.stream->reset();
+      return;
+    }
+    auto peer = peer_it->second;
     updatePeerKind(peer, protocol);
     peer->streams_in_.emplace(stream);
     coroSpawn(*io_context_, [WEAK_SELF, stream, peer]() -> Coro<void> {
@@ -258,7 +279,14 @@ namespace libp2p::protocol::gossip {
       WEAK_LOCK(self);
       auto peer_id = connection->remotePeer();
       std::println("ConnectionEstablished {}", peer_id.toBase58());
-      auto peer = self->getPeer(peer_id);
+      auto out = connection->isInitiator();
+      auto peer_it = self->peers_.find(peer_id);
+      if (peer_it == self->peers_.end()) {
+        peer_it =
+            self->peers_.emplace(peer_id, std::make_shared<Peer>(peer_id, out))
+                .first;
+      }
+      auto peer = peer_it->second;
       coroSpawn(*self->io_context_, [self, connection, peer]() -> Coro<void> {
         auto stream_and_protocol_result =
             (co_await self->host_->newStream(connection, self->protocols_));
@@ -462,8 +490,9 @@ namespace libp2p::protocol::gossip {
           // TODO: score
           return false;
         }
-        if (topic->mesh_peers_.size()
-            > config_.mesh_n_high_for_topic(topic_hash)) {
+        if (not peer->out_
+            and topic->mesh_peers_.size()
+                    > config_.mesh_n_high_for_topic(topic_hash)) {
           return false;
         }
         return true;
@@ -573,14 +602,6 @@ namespace libp2p::protocol::gossip {
         }
       }
     }
-  }
-
-  std::shared_ptr<Peer> Gossip::getPeer(const PeerId &peer_id) {
-    auto peer_it = peers_.find(peer_id);
-    if (peer_it == peers_.end()) {
-      peer_it = peers_.emplace(peer_id, std::make_shared<Peer>(peer_id)).first;
-    }
-    return peer_it->second;
   }
 
   Rpc &Gossip::getBatch(const std::shared_ptr<Peer> &peer) {
@@ -723,6 +744,8 @@ namespace libp2p::protocol::gossip {
         // TODO: remove negative score from mesh
 
         auto mesh_n = config_.mesh_n_for_topic(topic_hash);
+        auto mesh_outbound_min =
+            config_.mesh_outbound_min_for_topic(topic_hash);
         if (topic->mesh_peers_.size()
             < config_.mesh_n_low_for_topic(topic_hash)) {
           for (auto &peer : choose_peers_.choose(
@@ -743,18 +766,37 @@ namespace libp2p::protocol::gossip {
           // TODO: sort score
           choose_peers_.shuffle(std::span{shuffled}.first(
               saturating_sub(shuffled.size(), config_.retain_scores)));
+          auto outbound = topic->meshOutCount();
           for (auto &peer : shuffled) {
             if (topic->mesh_peers_.size() <= mesh_n) {
               break;
             }
-            // TODO: outbound
+            if (peer->out_) {
+              if (outbound <= mesh_outbound_min) {
+                continue;
+              }
+              --outbound;
+            }
             topic->mesh_peers_.erase(peer);
             make_prune(*topic, peer);
           }
         }
         if (topic->mesh_peers_.size()
             >= config_.mesh_n_low_for_topic(topic_hash)) {
-          // TODO: outbound
+          if (auto more =
+                  saturating_sub(mesh_outbound_min, topic->meshOutCount())) {
+            for (auto &peer : choose_peers_.choose(
+                     topic->peers_,
+                     [&](const PeerPtr &peer) {
+                       // TODO: score
+                       return peer->out_
+                          and not topic->mesh_peers_.contains(peer)
+                          and not is_backoff_with_slack(*topic, peer);
+                     },
+                     more)) {
+              graft(*topic, peer);
+            }
+          }
         }
         // TODO: opportunistic graft
       }

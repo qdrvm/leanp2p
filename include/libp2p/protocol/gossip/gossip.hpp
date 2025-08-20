@@ -90,6 +90,8 @@ namespace libp2p::protocol::gossip {
 
     void publish(BytesIn message);
 
+    size_t meshOutCount();
+
     std::weak_ptr<Gossip> weak_gossip_;
     TopicHash topic_hash_;
     CoroOutcomeChannel<Bytes> receive_channel_;
@@ -101,7 +103,7 @@ namespace libp2p::protocol::gossip {
 
   class Peer {
    public:
-    Peer(PeerId peer_id);
+    Peer(PeerId peer_id, bool out);
 
     bool isFloodsub() const;
     bool isGossipsub() const;
@@ -109,6 +111,7 @@ namespace libp2p::protocol::gossip {
     bool isGossipsubv1_2() const;
 
     PeerId peer_id_;
+    bool out_;
     std::optional<PeerKind> peer_kind_;
     std::unordered_set<TopicHash, qtils::BytesStdHash> topics_;
     std::optional<StreamPtr> stream_out_;
@@ -176,8 +179,6 @@ namespace libp2p::protocol::gossip {
                    const MessagePtr &message);
 
     bool onMessage(const std::shared_ptr<Peer> &peer, BytesIn encoded);
-
-    std::shared_ptr<Peer> getPeer(const PeerId &peer_id);
 
     Rpc &getBatch(const std::shared_ptr<Peer> &peer);
 
