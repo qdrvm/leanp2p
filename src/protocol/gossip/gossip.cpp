@@ -252,15 +252,13 @@ namespace libp2p::protocol::gossip {
 
   void Gossip::publish(Topic &topic, BytesIn data) {
     assert(config_.message_authenticity == MessageAuthenticity::Signed);
-    Message message{
-        host_->getId(),
-        qtils::asVec(data),
-        publish_config_.last_seq_no,
-        topic.topic_hash_,
-    };
+    auto message = std::make_shared<Message>(host_->getId(),
+                                             qtils::asVec(data),
+                                             publish_config_.last_seq_no,
+                                             topic.topic_hash_);
     ++publish_config_.last_seq_no;
 
-    auto message_id = config_.message_id_fn(message);
+    auto message_id = config_.message_id_fn(*message);
     if (duplicate_cache_.contains(message_id)) {
       return;
     }
@@ -307,7 +305,7 @@ namespace libp2p::protocol::gossip {
     }
 
     for (auto &pb_publish : pb_message.publish()) {
-      Message message;
+      auto message = std::make_shared<Message>();
 
       assert(config_.validation_mode == ValidationMode::Strict);
       auto from_result = PeerId::fromBytes(qtils::str2byte(pb_publish.from()));
@@ -315,22 +313,23 @@ namespace libp2p::protocol::gossip {
         continue;
       }
       auto &from = from_result.value();
-      message.from.emplace(from);
+      message->from.emplace(from);
 
-      message.data = qtils::asVec(qtils::str2byte(pb_publish.data()));
+      message->data = qtils::asVec(qtils::str2byte(pb_publish.data()));
 
       if (pb_publish.seqno().size() != sizeof(Seqno)) {
         continue;
       }
-      message.seqno = boost::endian::load_big_u64(
+      message->seqno = boost::endian::load_big_u64(
           qtils::str2byte(pb_publish.seqno().data()));
 
-      message.topic = qtils::asVec(qtils::str2byte(pb_publish.topic()));
+      message->topic = qtils::asVec(qtils::str2byte(pb_publish.topic()));
 
       gossipsub::pb::Message pb_signable = pb_publish;
       auto signable = getSignable(pb_signable);
 
-      message.signature = qtils::asVec(qtils::str2byte(pb_publish.signature()));
+      message->signature =
+          qtils::asVec(qtils::str2byte(pb_publish.signature()));
 
       auto public_key = from.publicKey();
       if (not public_key.has_value()) {
@@ -338,22 +337,22 @@ namespace libp2p::protocol::gossip {
       }
 
       auto verify =
-          crypto_provider_->verify(signable, *message.signature, *public_key);
+          crypto_provider_->verify(signable, *message->signature, *public_key);
       if (not verify.has_value() or not verify.value()) {
         continue;
       }
 
-      auto topic_it = topics_.find(message.topic);
+      auto topic_it = topics_.find(message->topic);
       if (topic_it == topics_.end()) {
         continue;
       }
       auto &topic = topic_it->second;
-      auto message_id = config_.message_id_fn(message);
+      auto message_id = config_.message_id_fn(*message);
       if (not duplicate_cache_.insert(message_id)) {
         // TODO: mcache.observe_duplicate()
         continue;
       }
-      topic->receive_channel_.send(message.data);
+      topic->receive_channel_.send(message->data);
       message_cache_.emplace(message_id, MessageCacheEntry{message});
       topic->history_.add(message_id);
       broadcast(*topic, peer->peer_id_, message);
@@ -442,13 +441,13 @@ namespace libp2p::protocol::gossip {
 
   void Gossip::broadcast(Topic &topic,
                          std::optional<PeerId> from,
-                         const Message &message) {
+                         const MessagePtr &message) {
     auto publish = not from.has_value();
     auto add_peer = [&](PeerPtr peer) {
       if (from == peer->peer_id_) {
         return;
       }
-      if (message.from == peer->peer_id_) {
+      if (message->from == peer->peer_id_) {
         return;
       }
       getBatch(peer).publish.emplace_back(message);
@@ -531,25 +530,25 @@ namespace libp2p::protocol::gossip {
           assert(self->config_.message_authenticity
                  == MessageAuthenticity::Signed);
 
-          if (publish.from.has_value()) {
+          if (publish->from.has_value()) {
             *pb_publish.mutable_from() =
-                qtils::byte2str(publish.from->toVector());
+                qtils::byte2str(publish->from->toVector());
           }
 
-          *pb_publish.mutable_data() = qtils::byte2str(publish.data);
+          *pb_publish.mutable_data() = qtils::byte2str(publish->data);
 
-          if (publish.seqno.has_value()) {
+          if (publish->seqno.has_value()) {
             auto &pb_seqno = *pb_publish.mutable_seqno();
             pb_seqno.resize(sizeof(Seqno));
             boost::endian::store_big_u64(qtils::str2byte(pb_seqno.data()),
-                                         *publish.seqno);
+                                         *publish->seqno);
           }
 
-          *pb_publish.mutable_topic() = qtils::byte2str(publish.topic);
+          *pb_publish.mutable_topic() = qtils::byte2str(publish->topic);
 
           Bytes signature;
-          if (publish.signature.has_value()) {
-            signature = *publish.signature;
+          if (publish->signature.has_value()) {
+            signature = *publish->signature;
           } else {
             auto signable = getSignable(pb_publish);
             signature =

@@ -38,6 +38,7 @@ namespace libp2p::protocol::gossip {
 
   using PeerPtr = std::shared_ptr<Peer>;
   using StreamPtr = std::shared_ptr<connection::Stream>;
+  using MessagePtr = std::shared_ptr<Message>;
 
   struct PublishConfigSigning {
     Seqno last_seq_no;
@@ -47,7 +48,7 @@ namespace libp2p::protocol::gossip {
     void subscribe(TopicHash topic_hash, bool subscribe);
 
     std::unordered_map<TopicHash, bool, qtils::BytesStdHash> subscriptions;
-    std::vector<Message> publish;
+    std::vector<MessagePtr> publish;
     std::unordered_set<TopicHash, qtils::BytesStdHash> graft;
     std::unordered_map<TopicHash, std::optional<Backoff>, qtils::BytesStdHash>
         prune;
@@ -67,7 +68,7 @@ namespace libp2p::protocol::gossip {
   };
 
   struct MessageCacheEntry {
-    Message message;
+    MessagePtr message;
     std::unordered_map<PeerId, size_t> iwant;
   };
 
@@ -159,7 +160,7 @@ namespace libp2p::protocol::gossip {
 
     void broadcast(Topic &topic,
                    std::optional<PeerId> from,
-                   const Message &message);
+                   const MessagePtr &message);
 
     bool onMessage(const std::shared_ptr<Peer> &peer, BytesIn encoded);
 
