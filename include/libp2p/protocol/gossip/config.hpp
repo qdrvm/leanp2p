@@ -102,5 +102,7 @@ namespace libp2p::protocol::gossip {
     double gossip_factor = 0.25;
 
     size_t max_ihave_length = 5000;
+
+    bool flood_publish = true;
   };
 }  // namespace libp2p::protocol::gossip

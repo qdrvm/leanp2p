@@ -483,25 +483,32 @@ namespace libp2p::protocol::gossip {
       }
       getBatch(peer).publish.emplace_back(message);
     };
-    for (auto &peer : topic.peers_) {
-      if (peer->isFloodsub()) {
+    if (publish and config_.flood_publish) {
+      for (auto &peer : topic.peers_) {
+        // TODO: score
         add_peer(peer);
       }
-    }
-    for (auto &peer : topic.mesh_peers_) {
-      add_peer(peer);
-    }
-    if (publish) {
-      if (auto more =
-              saturating_sub(config_.mesh_n_for_topic(topic.topic_hash_),
-                             topic.mesh_peers_.size())) {
-        for (auto &peer : choose_peers_.choose(
-                 topic.peers_,
-                 [&](const PeerPtr &peer) {
-                   return not topic.mesh_peers_.contains(peer);
-                 },
-                 more)) {
+    } else {
+      for (auto &peer : topic.peers_) {
+        if (peer->isFloodsub()) {
           add_peer(peer);
+        }
+      }
+      for (auto &peer : topic.mesh_peers_) {
+        add_peer(peer);
+      }
+      if (publish) {
+        if (auto more =
+                saturating_sub(config_.mesh_n_for_topic(topic.topic_hash_),
+                               topic.mesh_peers_.size())) {
+          for (auto &peer : choose_peers_.choose(
+                   topic.peers_,
+                   [&](const PeerPtr &peer) {
+                     return not topic.mesh_peers_.contains(peer);
+                   },
+                   more)) {
+            add_peer(peer);
+          }
         }
       }
     }
