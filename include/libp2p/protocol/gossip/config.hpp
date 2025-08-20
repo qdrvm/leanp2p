@@ -88,6 +88,8 @@ namespace libp2p::protocol::gossip {
     TopicMeshConfig default_mesh_params;
 
     Backoff prune_backoff{60};
+    Backoff unsubscribe_backoff{10};
+    size_t backoff_slack = 1;
 
     std::chrono::seconds heartbeat_interval{1};
 

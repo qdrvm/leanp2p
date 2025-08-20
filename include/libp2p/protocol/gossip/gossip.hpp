@@ -72,6 +72,18 @@ namespace libp2p::protocol::gossip {
     std::unordered_map<PeerId, size_t> iwant;
   };
 
+  struct TopicBackoff {
+    TopicBackoff(const Config &config);
+    size_t get(const PeerPtr &peer);
+    void update(const PeerPtr &peer, size_t slots);
+    void shift();
+
+    using Slot = std::list<PeerPtr>;
+    std::vector<Slot> slots_;
+    size_t slot_ = 0;
+    std::unordered_map<PeerPtr, std::pair<size_t, Slot::iterator>> peers_;
+  };
+
   class Topic {
    public:
     CoroOutcome<Bytes> receive();
@@ -82,6 +94,7 @@ namespace libp2p::protocol::gossip {
     TopicHash topic_hash_;
     CoroOutcomeChannel<Bytes> receive_channel_;
     History history_;
+    TopicBackoff backoff_;
     std::unordered_set<PeerPtr> peers_;
     std::unordered_set<PeerPtr> mesh_peers_;
   };
@@ -174,7 +187,7 @@ namespace libp2p::protocol::gossip {
 
     void graft(Topic &topic, const PeerPtr &peer);
 
-    void make_prune(const TopicHash &topic_hash, const PeerPtr &peer);
+    void make_prune(Topic &topic, const PeerPtr &peer);
 
     void remove_peer_from_mesh(const TopicHash &topic_hash,
                                const PeerPtr &peer,
@@ -185,6 +198,10 @@ namespace libp2p::protocol::gossip {
     Coro<void> heartbeat();
 
     void emit_gossip();
+
+    void update_backoff(Topic &topic, const PeerPtr &peer, Backoff backoff);
+    Backoff get_backoff_time(Topic &topic, const PeerPtr &peer);
+    bool is_backoff_with_slack(Topic &topic, const PeerPtr &peer);
 
     std::shared_ptr<boost::asio::io_context> io_context_;
     std::shared_ptr<host::BasicHost> host_;

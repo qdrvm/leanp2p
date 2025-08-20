@@ -116,6 +116,51 @@ namespace libp2p::protocol::gossip {
     return result;
   }
 
+  TopicBackoff::TopicBackoff(const Config &config) {
+    slots_.resize(config.prune_backoff / config.heartbeat_interval
+                  + config.backoff_slack + 1);
+  }
+
+  size_t TopicBackoff::get(const PeerPtr &peer) {
+    auto peer_it = peers_.find(peer);
+    if (peer_it == peers_.end()) {
+      return 0;
+    }
+    return saturating_sub(peer_it->second.first, slot_);
+  }
+
+  void TopicBackoff::update(const PeerPtr &peer, size_t slots) {
+    if (slots == 0) {
+      return;
+    }
+    slots = std::min(slots, slots_.size() - 1);
+    auto peer_it = peers_.find(peer);
+    auto slot = slot_ + slots;
+    auto insert = [&] {
+      auto &list = slots_.at(slot % slots_.size());
+      return std::make_pair(slot, list.insert(list.end(), peer));
+    };
+    if (peer_it != peers_.end()) {
+      if (slot <= peer_it->second.first) {
+        return;
+      }
+      slots_.at(peer_it->second.first % slots_.size())
+          .erase(peer_it->second.second);
+      peer_it->second = insert();
+    } else {
+      peers_.emplace(peer, insert());
+    }
+  }
+
+  void TopicBackoff::shift() {
+    auto &slot = slots_.at(slot_ % slots_.size());
+    for (auto &peer : slot) {
+      peers_.erase(peer);
+    }
+    slot.clear();
+    ++slot_;
+  }
+
   CoroOutcome<Bytes> Topic::receive() {
     co_return co_await receive_channel_.receive();
   }
@@ -247,10 +292,13 @@ namespace libp2p::protocol::gossip {
   std::shared_ptr<Topic> Gossip::subscribe(TopicHash topic_hash) {
     auto topic_it = topics_.find(topic_hash);
     if (topic_it == topics_.end()) {
-      auto topic = std::make_shared<Topic>(Topic{weak_from_this(),
-                                                 topic_hash,
-                                                 {*io_context_},
-                                                 {config_.history_length}});
+      auto topic = std::make_shared<Topic>(Topic{
+          weak_from_this(),
+          topic_hash,
+          {*io_context_},
+          {config_.history_length},
+          {config_},
+      });
       topic_it = topics_.emplace(topic_hash, topic).first;
       for (auto &peer : peers_ | std::views::values) {
         if (peer->topics_.contains(topic_hash)) {
@@ -261,7 +309,8 @@ namespace libp2p::protocol::gossip {
       for (auto &peer : choose_peers_.choose(
                topic->peers_,
                [&](const PeerPtr &peer) {
-                 return not topic->mesh_peers_.contains(peer);
+                 return not topic->mesh_peers_.contains(peer)
+                    and not is_backoff_with_slack(*topic, peer);
                },
                config_.mesh_n_for_topic(topic_hash))) {
         graft(*topic, peer);
@@ -321,7 +370,8 @@ namespace libp2p::protocol::gossip {
           if (peer->isGossipsub()
               and topic->mesh_peers_.size()
                       < config_.mesh_n_low_for_topic(topic_hash)
-              and not topic->mesh_peers_.contains(peer)) {
+              and not topic->mesh_peers_.contains(peer)
+              and not is_backoff_with_slack(*topic, peer)) {
             graft(*topic, peer);
           }
         }
@@ -406,11 +456,22 @@ namespace libp2p::protocol::gossip {
       if (topic->mesh_peers_.contains(peer)) {
         continue;
       }
-      if (topic->mesh_peers_.size()
-          < config_.mesh_n_high_for_topic(topic_hash)) {
+      auto accept = [&] {
+        auto backoff = get_backoff_time(*topic, peer);
+        if (backoff > Backoff::zero()) {
+          // TODO: score
+          return false;
+        }
+        if (topic->mesh_peers_.size()
+            > config_.mesh_n_high_for_topic(topic_hash)) {
+          return false;
+        }
+        return true;
+      }();
+      if (accept) {
         topic->mesh_peers_.emplace(peer);
       } else {
-        make_prune(topic_hash, peer);
+        make_prune(*topic, peer);
       }
     }
 
@@ -625,36 +686,39 @@ namespace libp2p::protocol::gossip {
     getBatch(peer).graft.emplace(topic.topic_hash_);
   }
 
-  void Gossip::make_prune(const TopicHash &topic_hash, const PeerPtr &peer) {
+  void Gossip::make_prune(Topic &topic, const PeerPtr &peer) {
     if (not peer->isGossipsub()) {
       return;
     }
     std::optional<Backoff> backoff;
     if (peer->isGossipsubv1_1()) {
       backoff = config_.prune_backoff;
-      // TODO: update_backoff()
+      update_backoff(topic, peer, *backoff);
     }
-    getBatch(peer).prune.emplace(topic_hash, backoff);
+    getBatch(peer).prune.emplace(topic.topic_hash_, backoff);
   }
 
   void Gossip::remove_peer_from_mesh(const TopicHash &topic_hash,
                                      const PeerPtr &peer,
                                      std::optional<Backoff> backoff,
                                      bool always_update_backoff) {
-    auto peer_removed = false;
     auto topic_it = topics_.find(topic_hash);
     if (topic_it != topics_.end()) {
       auto &topic = topic_it->second;
-      peer_removed = topic->mesh_peers_.erase(peer) != 0;
-    }
-    if (always_update_backoff or peer_removed) {
-      // TODO: update_backoff()
+      auto peer_removed = topic->mesh_peers_.erase(peer) != 0;
+      if (always_update_backoff or peer_removed) {
+        update_backoff(*topic, peer, backoff.value_or(config_.prune_backoff));
+      }
     }
   }
 
   Coro<void> Gossip::heartbeat() {
     boost::asio::steady_timer timer{*io_context_};
     while (true) {
+      for (auto &topic : topics_ | std::views::values) {
+        topic->backoff_.shift();
+      }
+
       for (auto &[topic_hash, topic] : topics_) {
         // TODO: remove negative score from mesh
 
@@ -664,7 +728,8 @@ namespace libp2p::protocol::gossip {
           for (auto &peer : choose_peers_.choose(
                    topic->peers_,
                    [&](const PeerPtr &peer) {
-                     return not topic->mesh_peers_.contains(peer);
+                     return not topic->mesh_peers_.contains(peer)
+                        and not is_backoff_with_slack(*topic, peer);
                    },
                    saturating_sub(config_.mesh_n_for_topic(topic_hash),
                                   topic->mesh_peers_.size()))) {
@@ -684,7 +749,7 @@ namespace libp2p::protocol::gossip {
             }
             // TODO: outbound
             topic->mesh_peers_.erase(peer);
-            make_prune(topic_hash, peer);
+            make_prune(*topic, peer);
           }
         }
         if (topic->mesh_peers_.size()
@@ -730,5 +795,21 @@ namespace libp2p::protocol::gossip {
         getBatch(peer).ihave[topic_hash] = std::move(peer_message_ids);
       }
     }
+  }
+
+  void Gossip::update_backoff(Topic &topic,
+                              const PeerPtr &peer,
+                              Backoff backoff) {
+    topic.backoff_.update(
+        peer, backoff / config_.heartbeat_interval + config_.backoff_slack);
+  }
+
+  Backoff Gossip::get_backoff_time(Topic &topic, const PeerPtr &peer) {
+    return saturating_sub(topic.backoff_.get(peer), config_.backoff_slack)
+         * config_.heartbeat_interval;
+  }
+
+  bool Gossip::is_backoff_with_slack(Topic &topic, const PeerPtr &peer) {
+    return topic.backoff_.get(peer) > 0;
   }
 }  // namespace libp2p::protocol::gossip
