@@ -840,123 +840,118 @@ namespace libp2p::protocol::gossip {
 
   void Gossip::heartbeat() {
     ++heartbeat_ticks_;
-    if ("TODO-REMOVE-INDENT") {
-      for (auto &topic : topics_ | std::views::values) {
-        topic->backoff_.shift();
+    for (auto &topic : topics_ | std::views::values) {
+      topic->backoff_.shift();
+    }
+
+    apply_iwant_penalties();
+
+    for (auto &[topic_hash, topic] : topics_) {
+      for (auto peer_it = topic->mesh_peers_.begin();
+           peer_it != topic->mesh_peers_.end();) {
+        auto &peer = *peer_it;
+        if (score_.below(peer->peer_id_, config_.score.zero)) {
+          make_prune(*topic, peer);
+          peer_it = topic->mesh_peers_.erase(peer_it);
+        } else {
+          ++peer_it;
+        }
       }
 
-      apply_iwant_penalties();
-
-      for (auto &[topic_hash, topic] : topics_) {
-        for (auto peer_it = topic->mesh_peers_.begin();
-             peer_it != topic->mesh_peers_.end();) {
-          auto &peer = *peer_it;
-          if (score_.below(peer->peer_id_, config_.score.zero)) {
-            make_prune(*topic, peer);
-            peer_it = topic->mesh_peers_.erase(peer_it);
-          } else {
-            ++peer_it;
+      auto mesh_n = config_.mesh_n_for_topic(topic_hash);
+      auto mesh_outbound_min = config_.mesh_outbound_min_for_topic(topic_hash);
+      if (topic->mesh_peers_.size()
+          < config_.mesh_n_low_for_topic(topic_hash)) {
+        for (auto &peer : choose_peers_.choose(
+                 topic->peers_,
+                 [&](const PeerPtr &peer) {
+                   return not topic->mesh_peers_.contains(peer)
+                      and not is_backoff_with_slack(*topic, peer)
+                      and not score_.below(peer->peer_id_, config_.score.zero);
+                 },
+                 saturating_sub(config_.mesh_n_for_topic(topic_hash),
+                                topic->mesh_peers_.size()))) {
+          graft(*topic, peer);
+        }
+      } else if (topic->mesh_peers_.size()
+                 > config_.mesh_n_high_for_topic(topic_hash)) {
+        std::vector<PeerPtr> shuffled;
+        shuffled.append_range(topic->mesh_peers_);
+        choose_peers_.shuffle(shuffled);
+        std::ranges::sort(shuffled, [&](const PeerPtr &l, const PeerPtr &r) {
+          return score_.score(r->peer_id_) < score_.score(l->peer_id_);
+        });
+        choose_peers_.shuffle(std::span{shuffled}.first(
+            saturating_sub(shuffled.size(), config_.retain_scores)));
+        auto outbound = topic->meshOutCount();
+        for (auto &peer : shuffled) {
+          if (topic->mesh_peers_.size() <= mesh_n) {
+            break;
+          }
+          if (peer->out_) {
+            if (outbound <= mesh_outbound_min) {
+              continue;
+            }
+            --outbound;
+          }
+          topic->mesh_peers_.erase(peer);
+          make_prune(*topic, peer);
+        }
+      }
+      if (topic->mesh_peers_.size()
+          >= config_.mesh_n_low_for_topic(topic_hash)) {
+        if (auto more =
+                saturating_sub(mesh_outbound_min, topic->meshOutCount())) {
+          for (auto &peer : choose_peers_.choose(
+                   topic->peers_,
+                   [&](const PeerPtr &peer) {
+                     return peer->out_ and not topic->mesh_peers_.contains(peer)
+                        and not is_backoff_with_slack(*topic, peer)
+                        and not score_.below(peer->peer_id_,
+                                             config_.score.zero);
+                   },
+                   more)) {
+            graft(*topic, peer);
           }
         }
-
-        auto mesh_n = config_.mesh_n_for_topic(topic_hash);
-        auto mesh_outbound_min =
-            config_.mesh_outbound_min_for_topic(topic_hash);
-        if (topic->mesh_peers_.size()
-            < config_.mesh_n_low_for_topic(topic_hash)) {
+      }
+      if (heartbeat_ticks_ % config_.opportunistic_graft_ticks == 0
+          and topic->mesh_peers_.size() > 1) {
+        std::vector<double> scores;
+        scores.reserve(topic->mesh_peers_.size());
+        for (auto &peer : topic->mesh_peers_) {
+          scores.emplace_back(score_.score(peer->peer_id_));
+        }
+        std::ranges::sort(scores);
+        auto middle = scores.size() / 2;
+        auto median = scores.size() % 2 == 0
+                        ? (scores[middle - 1] + scores[middle + 1]) / 2
+                        : scores[middle];
+        if (median < config_.score.opportunistic_graft_threshold) {
           for (auto &peer : choose_peers_.choose(
                    topic->peers_,
                    [&](const PeerPtr &peer) {
                      return not topic->mesh_peers_.contains(peer)
                         and not is_backoff_with_slack(*topic, peer)
-                        and not score_.below(peer->peer_id_,
-                                             config_.score.zero);
+                        and score_.score(peer->peer_id_) > median;
                    },
-                   saturating_sub(config_.mesh_n_for_topic(topic_hash),
-                                  topic->mesh_peers_.size()))) {
+                   config_.opportunistic_graft_peers)) {
             graft(*topic, peer);
           }
-        } else if (topic->mesh_peers_.size()
-                   > config_.mesh_n_high_for_topic(topic_hash)) {
-          std::vector<PeerPtr> shuffled;
-          shuffled.append_range(topic->mesh_peers_);
-          choose_peers_.shuffle(shuffled);
-          std::ranges::sort(shuffled, [&](const PeerPtr &l, const PeerPtr &r) {
-            return score_.score(r->peer_id_) < score_.score(l->peer_id_);
-          });
-          choose_peers_.shuffle(std::span{shuffled}.first(
-              saturating_sub(shuffled.size(), config_.retain_scores)));
-          auto outbound = topic->meshOutCount();
-          for (auto &peer : shuffled) {
-            if (topic->mesh_peers_.size() <= mesh_n) {
-              break;
-            }
-            if (peer->out_) {
-              if (outbound <= mesh_outbound_min) {
-                continue;
-              }
-              --outbound;
-            }
-            topic->mesh_peers_.erase(peer);
-            make_prune(*topic, peer);
-          }
-        }
-        if (topic->mesh_peers_.size()
-            >= config_.mesh_n_low_for_topic(topic_hash)) {
-          if (auto more =
-                  saturating_sub(mesh_outbound_min, topic->meshOutCount())) {
-            for (auto &peer : choose_peers_.choose(
-                     topic->peers_,
-                     [&](const PeerPtr &peer) {
-                       return peer->out_
-                          and not topic->mesh_peers_.contains(peer)
-                          and not is_backoff_with_slack(*topic, peer)
-                          and not score_.below(peer->peer_id_,
-                                               config_.score.zero);
-                     },
-                     more)) {
-              graft(*topic, peer);
-            }
-          }
-        }
-        if (heartbeat_ticks_ % config_.opportunistic_graft_ticks == 0
-            and topic->mesh_peers_.size() > 1) {
-          std::vector<double> scores;
-          scores.reserve(topic->mesh_peers_.size());
-          for (auto &peer : topic->mesh_peers_) {
-            scores.emplace_back(score_.score(peer->peer_id_));
-          }
-          std::ranges::sort(scores);
-          auto middle = scores.size() / 2;
-          auto median = scores.size() % 2 == 0
-                          ? (scores[middle - 1] + scores[middle + 1]) / 2
-                          : scores[middle];
-          if (median < config_.score.opportunistic_graft_threshold) {
-            for (auto &peer : choose_peers_.choose(
-                     topic->peers_,
-                     [&](const PeerPtr &peer) {
-                       return not topic->mesh_peers_.contains(peer)
-                          and not is_backoff_with_slack(*topic, peer)
-                          and score_.score(peer->peer_id_) > median;
-                     },
-                     config_.opportunistic_graft_peers)) {
-              graft(*topic, peer);
-            }
-          }
         }
       }
+    }
 
-      emit_gossip();
-      for (auto &topic : topics_ | std::views::values) {
-        for (auto &message_id : topic->history_.shift()) {
-          message_cache_.erase(message_id);
-        }
+    emit_gossip();
+    for (auto &topic : topics_ | std::views::values) {
+      for (auto &message_id : topic->history_.shift()) {
+        message_cache_.erase(message_id);
       }
+    }
 
-      auto now = time_cache::Clock::now();
-      for (auto &peer : peers_ | std::views::values) {
-        peer->dont_send_.clearExpired(now);
-      }
+    auto now = time_cache::Clock::now();
+    for (auto &peer : peers_ | std::views::values) {
+      peer->dont_send_.clearExpired(now);
     }
   }
 
