@@ -498,7 +498,6 @@ namespace libp2p::protocol::gossip {
       auto message_id = config_.message_id_fn(*message);
       if (not duplicate_cache_.insert(message_id)) {
         score_.duplicateMessage(peer->peer_id_, message_id, message->topic);
-        // TODO: mcache.observe_duplicate()
         continue;
       }
       score_.validateMessage(peer->peer_id_, message_id, message->topic);
@@ -562,31 +561,8 @@ namespace libp2p::protocol::gossip {
       remove_peer_from_mesh(topic_hash, peer, backoff, true);
     }
 
-    for (auto &pb_ihave : pb_message.control().ihave()) {
-      if (not peer->isGossipsub()) {
-        return false;
-      }
-      if (score_.below(peer->peer_id_, config_.score.gossip_threshold)) {
-        continue;
-      }
-      auto topic_hash = qtils::asVec(qtils::str2byte(pb_ihave.topic_id()));
-      if (not topics_.contains(topic_hash)) {
-        continue;
-      }
-      for (auto &pb_message : pb_ihave.message_ids()) {
-        auto message_id = qtils::asVec(qtils::str2byte(pb_message));
-        if (duplicate_cache_.contains(message_id)) {
-          continue;
-        }
-        if (gossip_promises_.contains(message_id)) {
-          continue;
-        }
-        // TODO: count_sent_iwant
-        // TODO: max_ihave_length
-        // TODO: shuffle
-        gossip_promises_.add(message_id, peer);
-        getBatch(peer).iwant.emplace(message_id);
-      }
+    if (not handle_ihave(peer, pb_message)) {
+      return false;
     }
 
     for (auto &pb_iwant : pb_message.control().iwant()) {
@@ -844,6 +820,9 @@ namespace libp2p::protocol::gossip {
       topic->backoff_.shift();
     }
 
+    count_received_ihave_.clear();
+    count_sent_iwant_.clear();
+
     apply_iwant_penalties();
 
     for (auto &[topic_hash, topic] : topics_) {
@@ -1002,5 +981,71 @@ namespace libp2p::protocol::gossip {
     for (auto &[peer, count] : gossip_promises_.clearExpired()) {
       score_.addPenalty(peer->peer_id_, count);
     }
+  }
+
+  bool Gossip::handle_ihave(const PeerPtr &peer,
+                            const gossipsub::pb::RPC &pb_message) {
+    auto &pb_ihaves = pb_message.control().ihave();
+    if (pb_ihaves.empty()) {
+      return true;
+    }
+    if (not peer->isGossipsub()) {
+      return false;
+    }
+    auto &peer_have = count_received_ihave_[peer];
+    ++peer_have;
+    if (peer_have > config_.max_ihave_messages) {
+      return true;
+    }
+    auto want_it = count_sent_iwant_.find(peer);
+    if (want_it != count_sent_iwant_.end()
+        and want_it->second >= config_.max_ihave_length) {
+      return true;
+    }
+    std::unordered_set<MessageId, qtils::BytesStdHash> want_set;
+    for (auto &pb_ihave : pb_ihaves) {
+      if (score_.below(peer->peer_id_, config_.score.gossip_threshold)) {
+        continue;
+      }
+      auto topic_hash = qtils::asVec(qtils::str2byte(pb_ihave.topic_id()));
+      if (not topics_.contains(topic_hash)) {
+        continue;
+      }
+      for (auto &pb_message : pb_ihave.message_ids()) {
+        auto message_id = qtils::asVec(qtils::str2byte(pb_message));
+        if (duplicate_cache_.contains(message_id)) {
+          continue;
+        }
+        if (gossip_promises_.contains(message_id)) {
+          continue;
+        }
+        want_set.emplace(message_id);
+      }
+    }
+    if (want_set.empty()) {
+      return true;
+    }
+    if (want_it == count_sent_iwant_.end()) {
+      want_it = count_sent_iwant_.emplace(peer, 0).first;
+    }
+    auto count =
+        std::min(want_set.size(),
+                 saturating_sub(config_.max_ihave_length, want_it->second));
+    std::vector<MessageId> want;
+    want.reserve(want_set.size());
+    for (auto &message_id : want_set) {
+      want.emplace_back(message_id);
+    }
+    choose_peers_.shuffle(want);
+    if (want.size() > count) {
+      want.resize(count);
+    }
+    want_it->second += count;
+    auto &batch = getBatch(peer);
+    for (auto &message_id : want) {
+      gossip_promises_.add(message_id, peer);
+      batch.iwant.emplace(message_id);
+    }
+    return true;
   }
 }  // namespace libp2p::protocol::gossip

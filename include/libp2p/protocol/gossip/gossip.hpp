@@ -17,6 +17,10 @@
 #include <random>
 #include <unordered_set>
 
+namespace gossipsub::pb {
+  class RPC;
+}  // namespace gossipsub::pb
+
 namespace boost::asio {
   class io_context;
 }  // namespace boost::asio
@@ -210,6 +214,9 @@ namespace libp2p::protocol::gossip {
 
     void apply_iwant_penalties();
 
+    bool handle_ihave(const PeerPtr &peer,
+                      const gossipsub::pb::RPC &pb_message);
+
     std::shared_ptr<boost::asio::io_context> io_context_;
     std::shared_ptr<host::BasicHost> host_;
     std::shared_ptr<peer::IdentityManager> id_mgr_;
@@ -229,5 +236,7 @@ namespace libp2p::protocol::gossip {
     GossipPromises<PeerPtr> gossip_promises_;
     Score score_;
     size_t heartbeat_ticks_ = 0;
+    std::unordered_map<PeerPtr, size_t> count_received_ihave_;
+    std::unordered_map<PeerPtr, size_t> count_sent_iwant_;
   };
 }  // namespace libp2p::protocol::gossip

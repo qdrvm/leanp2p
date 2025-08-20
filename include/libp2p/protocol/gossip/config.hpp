@@ -178,6 +178,7 @@ namespace libp2p::protocol::gossip {
     double gossip_factor = 0.25;
 
     size_t max_ihave_length = 5000;
+    size_t max_ihave_messages = 10;
 
     bool flood_publish = true;
 
