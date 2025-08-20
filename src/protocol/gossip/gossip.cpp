@@ -15,6 +15,7 @@
 #include <libp2p/common/saturating.hpp>
 #include <libp2p/common/weak_macro.hpp>
 #include <libp2p/coro/spawn.hpp>
+#include <libp2p/coro/timer_loop.hpp>
 #include <libp2p/coro/yield.hpp>
 #include <libp2p/crypto/crypto_provider.hpp>
 #include <libp2p/host/basic_host.hpp>
@@ -226,7 +227,8 @@ namespace libp2p::protocol::gossip {
                                                   .count()),
         },
         duplicate_cache_{config.duplicate_cache_time},
-        gossip_promises_{config_.iwant_followup_time} {
+        gossip_promises_{config_.iwant_followup_time},
+        score_{config_.score} {
     assert(config_.message_id_fn);
 
     for (auto &protocol : config_.protocol_versions | std::views::keys) {
@@ -289,6 +291,7 @@ namespace libp2p::protocol::gossip {
         peer_it =
             self->peers_.emplace(peer_id, std::make_shared<Peer>(peer_id, out))
                 .first;
+        self->score_.connect(peer_id);
       }
       auto peer = peer_it->second;
       coroSpawn(*self->io_context_, [self, connection, peer]() -> Coro<void> {
@@ -314,6 +317,7 @@ namespace libp2p::protocol::gossip {
     };
     auto on_peer_disconnected = [WEAK_SELF](PeerId peer_id) {
       WEAK_LOCK(self);
+      self->score_.disconnect(peer_id);
       auto peer_it = self->peers_.find(peer_id);
       if (peer_it != self->peers_.end()) {
         auto &peer = peer_it->second;
@@ -337,8 +341,14 @@ namespace libp2p::protocol::gossip {
             .getChannel<event::network::OnPeerDisconnectedChannel>()
             .subscribe(on_peer_disconnected);
 
-    coroSpawn(*io_context_, [self{shared_from_this()}]() -> Coro<void> {
-      co_await self->heartbeat();
+    timerLoop(*io_context_, config_.heartbeat_interval, [WEAK_SELF] {
+      WEAK_LOCK(self);
+      self->heartbeat();
+    });
+
+    timerLoop(*io_context_, config_.score.decay_interval, [WEAK_SELF] {
+      WEAK_LOCK(self);
+      self->score_.onDecay();
     });
   }
 
@@ -363,7 +373,8 @@ namespace libp2p::protocol::gossip {
                topic->peers_,
                [&](const PeerPtr &peer) {
                  return not topic->mesh_peers_.contains(peer)
-                    and not is_backoff_with_slack(*topic, peer);
+                    and not is_backoff_with_slack(*topic, peer)
+                    and not score_.below(peer->peer_id_, config_.score.zero);
                },
                config_.mesh_n_for_topic(topic_hash))) {
         graft(*topic, peer);
@@ -406,6 +417,10 @@ namespace libp2p::protocol::gossip {
     }
     auto &pb_message = pb_message_result.value();
 
+    if (score_.below(peer->peer_id_, config_.score.graylist_threshold)) {
+      return true;
+    }
+
     for (auto &pb_subscribe : pb_message.subscriptions()) {
       auto topic_hash = qtils::asVec(qtils::str2byte(pb_subscribe.topic_id()));
       auto topic_it = topics_.find(topic_hash);
@@ -422,7 +437,8 @@ namespace libp2p::protocol::gossip {
               and topic->mesh_peers_.size()
                       < config_.mesh_n_low_for_topic(topic_hash)
               and not topic->mesh_peers_.contains(peer)
-              and not is_backoff_with_slack(*topic, peer)) {
+              and not is_backoff_with_slack(*topic, peer)
+              and not score_.below(peer->peer_id_, config_.score.zero)) {
             graft(*topic, peer);
           }
         }
@@ -481,9 +497,11 @@ namespace libp2p::protocol::gossip {
       auto &topic = topic_it->second;
       auto message_id = config_.message_id_fn(*message);
       if (not duplicate_cache_.insert(message_id)) {
+        score_.duplicateMessage(peer->peer_id_, message_id, message->topic);
         // TODO: mcache.observe_duplicate()
         continue;
       }
+      score_.validateMessage(peer->peer_id_, message_id, message->topic);
       topic->receive_channel_.send(message->data);
       broadcast(*topic, peer->peer_id_, message_id, message);
     }
@@ -508,7 +526,10 @@ namespace libp2p::protocol::gossip {
       auto accept = [&] {
         auto backoff = get_backoff_time(*topic, peer);
         if (backoff > Backoff::zero()) {
-          // TODO: score
+          score_.addPenalty(peer->peer_id_, 1);
+          if (backoff + config_.graft_flood_threshold > config_.prune_backoff) {
+            score_.addPenalty(peer->peer_id_, 1);
+          }
           return false;
         }
         if (not peer->out_
@@ -516,10 +537,14 @@ namespace libp2p::protocol::gossip {
                     > config_.mesh_n_high_for_topic(topic_hash)) {
           return false;
         }
+        if (score_.below(peer->peer_id_, config_.score.zero)) {
+          return false;
+        }
         return true;
       }();
       if (accept) {
         topic->mesh_peers_.emplace(peer);
+        score_.graft(peer->peer_id_, topic_hash);
       } else {
         make_prune(*topic, peer);
       }
@@ -540,6 +565,9 @@ namespace libp2p::protocol::gossip {
     for (auto &pb_ihave : pb_message.control().ihave()) {
       if (not peer->isGossipsub()) {
         return false;
+      }
+      if (score_.below(peer->peer_id_, config_.score.gossip_threshold)) {
+        continue;
       }
       auto topic_hash = qtils::asVec(qtils::str2byte(pb_ihave.topic_id()));
       if (not topics_.contains(topic_hash)) {
@@ -564,6 +592,9 @@ namespace libp2p::protocol::gossip {
     for (auto &pb_iwant : pb_message.control().iwant()) {
       if (not peer->isGossipsub()) {
         return false;
+      }
+      if (score_.below(peer->peer_id_, config_.score.gossip_threshold)) {
+        continue;
       }
       for (auto &pb_message : pb_iwant.message_ids()) {
         auto message_id = qtils::asVec(qtils::str2byte(pb_message));
@@ -625,6 +656,9 @@ namespace libp2p::protocol::gossip {
       if (message->from == peer->peer_id_) {
         return;
       }
+      if (score_.below(peer->peer_id_, config_.score.publish_threshold)) {
+        return;
+      }
       auto &batch = getBatch(peer);
       if (send_idontwant) {
         batch.idontwant.emplace(message_id);
@@ -633,7 +667,6 @@ namespace libp2p::protocol::gossip {
     };
     if (publish and config_.flood_publish) {
       for (auto &peer : topic.peers_) {
-        // TODO: score
         add_peer(peer);
       }
     } else {
@@ -771,6 +804,7 @@ namespace libp2p::protocol::gossip {
   void Gossip::graft(Topic &topic, const PeerPtr &peer) {
     assert(not topic.mesh_peers_.contains(peer));
     topic.mesh_peers_.emplace(peer);
+    score_.graft(peer->peer_id_, topic.topic_hash_);
     getBatch(peer).graft.emplace(topic.topic_hash_);
   }
 
@@ -778,6 +812,7 @@ namespace libp2p::protocol::gossip {
     if (not peer->isGossipsub()) {
       return;
     }
+    score_.prune(peer->peer_id_, topic.topic_hash_);
     std::optional<Backoff> backoff;
     if (peer->isGossipsubv1_1()) {
       backoff = config_.prune_backoff;
@@ -794,15 +829,17 @@ namespace libp2p::protocol::gossip {
     if (topic_it != topics_.end()) {
       auto &topic = topic_it->second;
       auto peer_removed = topic->mesh_peers_.erase(peer) != 0;
+      if (peer_removed) {
+        score_.prune(peer->peer_id_, topic_hash);
+      }
       if (always_update_backoff or peer_removed) {
         update_backoff(*topic, peer, backoff.value_or(config_.prune_backoff));
       }
     }
   }
 
-  Coro<void> Gossip::heartbeat() {
-    boost::asio::steady_timer timer{*io_context_};
-    while (true) {
+  void Gossip::heartbeat() {
+    if ("TODO-REMOVE-INDENT") {
       for (auto &topic : topics_ | std::views::values) {
         topic->backoff_.shift();
       }
@@ -810,7 +847,16 @@ namespace libp2p::protocol::gossip {
       apply_iwant_penalties();
 
       for (auto &[topic_hash, topic] : topics_) {
-        // TODO: remove negative score from mesh
+        for (auto peer_it = topic->mesh_peers_.begin();
+             peer_it != topic->mesh_peers_.end();) {
+          auto &peer = *peer_it;
+          if (score_.below(peer->peer_id_, config_.score.zero)) {
+            make_prune(*topic, peer);
+            peer_it = topic->mesh_peers_.erase(peer_it);
+          } else {
+            ++peer_it;
+          }
+        }
 
         auto mesh_n = config_.mesh_n_for_topic(topic_hash);
         auto mesh_outbound_min =
@@ -821,7 +867,9 @@ namespace libp2p::protocol::gossip {
                    topic->peers_,
                    [&](const PeerPtr &peer) {
                      return not topic->mesh_peers_.contains(peer)
-                        and not is_backoff_with_slack(*topic, peer);
+                        and not is_backoff_with_slack(*topic, peer)
+                        and not score_.below(peer->peer_id_,
+                                             config_.score.zero);
                    },
                    saturating_sub(config_.mesh_n_for_topic(topic_hash),
                                   topic->mesh_peers_.size()))) {
@@ -832,7 +880,9 @@ namespace libp2p::protocol::gossip {
           std::vector<PeerPtr> shuffled;
           shuffled.append_range(topic->mesh_peers_);
           choose_peers_.shuffle(shuffled);
-          // TODO: sort score
+          std::ranges::sort(shuffled, [&](const PeerPtr &l, const PeerPtr &r) {
+            return score_.score(r->peer_id_) < score_.score(l->peer_id_);
+          });
           choose_peers_.shuffle(std::span{shuffled}.first(
               saturating_sub(shuffled.size(), config_.retain_scores)));
           auto outbound = topic->meshOutCount();
@@ -857,10 +907,11 @@ namespace libp2p::protocol::gossip {
             for (auto &peer : choose_peers_.choose(
                      topic->peers_,
                      [&](const PeerPtr &peer) {
-                       // TODO: score
                        return peer->out_
                           and not topic->mesh_peers_.contains(peer)
-                          and not is_backoff_with_slack(*topic, peer);
+                          and not is_backoff_with_slack(*topic, peer)
+                          and not score_.below(peer->peer_id_,
+                                               config_.score.zero);
                      },
                      more)) {
               graft(*topic, peer);
@@ -881,9 +932,6 @@ namespace libp2p::protocol::gossip {
       for (auto &peer : peers_ | std::views::values) {
         peer->dont_send_.clearExpired(now);
       }
-
-      timer.expires_after(config_.heartbeat_interval);
-      co_await timer.async_wait(boost::asio::use_awaitable);
     }
   }
 
@@ -896,8 +944,9 @@ namespace libp2p::protocol::gossip {
       for (auto &peer : choose_peers_.choose(
                topic->peers_,
                [&](const PeerPtr &peer) {
-                 // TODO: score
-                 return not topic->mesh_peers_.contains(peer);
+                 return not topic->mesh_peers_.contains(peer)
+                    and not score_.below(peer->peer_id_,
+                                         config_.score.gossip_threshold);
                },
                [&](size_t n) {
                  return std::max<size_t>(config_.gossip_lazy,
@@ -931,7 +980,7 @@ namespace libp2p::protocol::gossip {
 
   void Gossip::apply_iwant_penalties() {
     for (auto &[peer, count] : gossip_promises_.clearExpired()) {
-      // TODO: score
+      score_.addPenalty(peer->peer_id_, count);
     }
   }
 }  // namespace libp2p::protocol::gossip

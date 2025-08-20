@@ -9,12 +9,16 @@
 #include <libp2p/common/types.hpp>
 #include <libp2p/peer/peer_id.hpp>
 #include <libp2p/peer/stream_protocols.hpp>
+#include <qtils/bytes_std_hash.hpp>
+#include <unordered_map>
 
 namespace libp2p::protocol::gossip {
   using TopicHash = Bytes;
   using MessageId = Bytes;
   using Seqno = uint64_t;
   using Backoff = std::chrono::seconds;
+
+  constexpr double kDefaultDecayToZero = 0.1;
 
   inline const ProtocolName kProtocolFloodsub = "/floodsub/1.0.0";
   inline const ProtocolName kProtocolGossipsub = "/meshsub/1.0.0";
@@ -58,6 +62,74 @@ namespace libp2p::protocol::gossip {
     size_t mesh_outbound_min = 2;
   };
 
+  struct TopicScoreParams {
+    double topic_weight = 0.5;
+    double time_in_mesh_weight = 1;
+    std::chrono::milliseconds time_in_mesh_quantum{1};
+    double time_in_mesh_cap = 3600;
+    double first_message_deliveries_weight = 1;
+    double first_message_deliveries_decay = 0.5;
+    double first_message_deliveries_cap = 2000;
+    double mesh_message_deliveries_weight = -1;
+    double mesh_message_deliveries_decay = 0.5;
+    double mesh_message_deliveries_cap = 100;
+    double mesh_message_deliveries_threshold = 20;
+    std::chrono::milliseconds mesh_message_deliveries_window{10};
+    std::chrono::seconds mesh_message_deliveries_activation{5};
+    double mesh_failure_penalty_weight = -1;
+    double mesh_failure_penalty_decay = 0.5;
+    double invalid_message_deliveries_weight = -1;
+    double invalid_message_deliveries_decay = 0.3;
+  };
+
+  struct ScoreConfig {
+    double zero = 0;
+    /// The score threshold below which gossip propagation is suppressed;
+    /// should be negative.
+    double gossip_threshold = -10;
+    /// The score threshold below which we shouldn't publish when using flood
+    /// publishing (also applies to fanout peers); should be negative and <=
+    /// `gossip_threshold`.
+    double publish_threshold = -50;
+    /// The score threshold below which message processing is suppressed
+    /// altogether, implementing an effective graylist according to peer score;
+    /// should be negative and
+    /// <= `publish_threshold`.
+    double graylist_threshold = -80;
+    /// The median mesh score threshold before triggering opportunistic
+    /// grafting; this should have a small positive value.
+    double opportunistic_graft_threshold = 20;
+
+    std::unordered_map<TopicHash, TopicScoreParams, qtils::BytesStdHash> topics;
+    double topic_score_cap = 3600;
+    double app_specific_weight = 10;
+    double behaviour_penalty_weight = -10;
+    double behaviour_penalty_threshold = 0;
+    double behaviour_penalty_decay = 0.2;
+    std::chrono::milliseconds decay_interval = std::chrono::seconds{1};
+    double decay_to_zero = kDefaultDecayToZero;
+    std::chrono::seconds retain_score{3600};
+    double slow_peer_weight = -0.2;
+    double slow_peer_threshold = 0.0;
+    double slow_peer_decay = 0.2;
+
+    bool valid() const {
+      if (gossip_threshold > 0) {
+        return false;
+      }
+      if (publish_threshold > 0 or publish_threshold > gossip_threshold) {
+        return false;
+      }
+      if (graylist_threshold > 0 or graylist_threshold > publish_threshold) {
+        return false;
+      }
+      if (opportunistic_graft_threshold < 0) {
+        return false;
+      }
+      return true;
+    }
+  };
+
   struct Config {
     // Fixes default field values with boost::di.
     Config() = default;
@@ -91,6 +163,7 @@ namespace libp2p::protocol::gossip {
     Backoff prune_backoff{60};
     Backoff unsubscribe_backoff{10};
     size_t backoff_slack = 1;
+    Backoff graft_flood_threshold{10};
 
     std::chrono::seconds heartbeat_interval{1};
 
@@ -112,5 +185,7 @@ namespace libp2p::protocol::gossip {
     bool idontwant_on_publish = false;
 
     std::chrono::seconds iwant_followup_time{3};
+
+    ScoreConfig score;
   };
 }  // namespace libp2p::protocol::gossip

@@ -11,6 +11,7 @@
 #include <libp2p/event/bus.hpp>
 #include <libp2p/protocol/base_protocol.hpp>
 #include <libp2p/protocol/gossip/config.hpp>
+#include <libp2p/protocol/gossip/score.hpp>
 #include <libp2p/protocol/gossip/time_cache.hpp>
 #include <qtils/bytes_std_hash.hpp>
 #include <random>
@@ -199,7 +200,7 @@ namespace libp2p::protocol::gossip {
                                bool always_update_backoff);
 
    private:
-    Coro<void> heartbeat();
+    void heartbeat();
 
     void emit_gossip();
 
@@ -226,5 +227,6 @@ namespace libp2p::protocol::gossip {
     std::unordered_map<MessageId, MessageCacheEntry, qtils::BytesStdHash>
         message_cache_;
     GossipPromises<PeerPtr> gossip_promises_;
+    Score score_;
   };
 }  // namespace libp2p::protocol::gossip
