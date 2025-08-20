@@ -228,5 +228,6 @@ namespace libp2p::protocol::gossip {
         message_cache_;
     GossipPromises<PeerPtr> gossip_promises_;
     Score score_;
+    size_t heartbeat_ticks_ = 0;
   };
 }  // namespace libp2p::protocol::gossip

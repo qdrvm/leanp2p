@@ -839,6 +839,7 @@ namespace libp2p::protocol::gossip {
   }
 
   void Gossip::heartbeat() {
+    ++heartbeat_ticks_;
     if ("TODO-REMOVE-INDENT") {
       for (auto &topic : topics_ | std::views::values) {
         topic->backoff_.shift();
@@ -918,7 +919,31 @@ namespace libp2p::protocol::gossip {
             }
           }
         }
-        // TODO: opportunistic graft
+        if (heartbeat_ticks_ % config_.opportunistic_graft_ticks == 0
+            and topic->mesh_peers_.size() > 1) {
+          std::vector<double> scores;
+          scores.reserve(topic->mesh_peers_.size());
+          for (auto &peer : topic->mesh_peers_) {
+            scores.emplace_back(score_.score(peer->peer_id_));
+          }
+          std::ranges::sort(scores);
+          auto middle = scores.size() / 2;
+          auto median = scores.size() % 2 == 0
+                          ? (scores[middle - 1] + scores[middle + 1]) / 2
+                          : scores[middle];
+          if (median < config_.score.opportunistic_graft_threshold) {
+            for (auto &peer : choose_peers_.choose(
+                     topic->peers_,
+                     [&](const PeerPtr &peer) {
+                       return not topic->mesh_peers_.contains(peer)
+                          and not is_backoff_with_slack(*topic, peer)
+                          and score_.score(peer->peer_id_) > median;
+                     },
+                     config_.opportunistic_graft_peers)) {
+              graft(*topic, peer);
+            }
+          }
+        }
       }
 
       emit_gossip();
