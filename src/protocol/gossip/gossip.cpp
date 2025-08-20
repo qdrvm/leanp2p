@@ -275,8 +275,9 @@ namespace libp2p::protocol::gossip {
   void Gossip::start() {
     std::println("LocalPeerId {}", host_->getId().toBase58());
     host_->listenProtocol(shared_from_this());
-    auto on_peer = [WEAK_SELF](std::weak_ptr<connection::CapableConnection>
-                                   weak_connection) {
+    auto on_peer_connected = [WEAK_SELF](
+                                 std::weak_ptr<connection::CapableConnection>
+                                     weak_connection) {
       WEAK_LOCK(connection);
       WEAK_LOCK(self);
       auto peer_id = connection->remotePeer();
@@ -310,9 +311,30 @@ namespace libp2p::protocol::gossip {
         }
       });
     };
-    on_peer_sub_ = host_->getBus()
-                       .getChannel<event::network::OnNewConnectionChannel>()
-                       .subscribe(on_peer);
+    auto on_peer_disconnected = [WEAK_SELF](PeerId peer_id) {
+      WEAK_LOCK(self);
+      auto peer_it = self->peers_.find(peer_id);
+      if (peer_it != self->peers_.end()) {
+        auto &peer = peer_it->second;
+        for (auto &topic_hash : peer_it->second->topics_) {
+          auto topic_it = self->topics_.find(topic_hash);
+          if (topic_it != self->topics_.end()) {
+            auto &topic = topic_it->second;
+            topic->peers_.erase(peer);
+            topic->mesh_peers_.erase(peer);
+          }
+        }
+        self->peers_.erase(peer_it);
+      }
+    };
+    on_peer_connected_sub_ =
+        host_->getBus()
+            .getChannel<event::network::OnNewConnectionChannel>()
+            .subscribe(on_peer_connected);
+    on_peer_disconnected_sub_ =
+        host_->getBus()
+            .getChannel<event::network::OnPeerDisconnectedChannel>()
+            .subscribe(on_peer_disconnected);
 
     coroSpawn(*io_context_, [self{shared_from_this()}]() -> Coro<void> {
       co_await self->heartbeat();
@@ -378,7 +400,7 @@ namespace libp2p::protocol::gossip {
     broadcast(topic, std::nullopt, message_id, message);
   }
 
-  bool Gossip::onMessage(const std::shared_ptr<Peer> &peer, BytesIn encoded) {
+  bool Gossip::onMessage(const PeerPtr &peer, BytesIn encoded) {
     auto pb_message_result = protobufDecode<gossipsub::pb::RPC>(encoded);
     if (not pb_message_result.has_value()) {
       return false;
@@ -635,7 +657,7 @@ namespace libp2p::protocol::gossip {
     }
   }
 
-  Rpc &Gossip::getBatch(const std::shared_ptr<Peer> &peer) {
+  Rpc &Gossip::getBatch(const PeerPtr &peer) {
     if (not peer->batch_) {
       peer->batch_.emplace();
     }
@@ -643,7 +665,7 @@ namespace libp2p::protocol::gossip {
     return peer->batch_.value();
   }
 
-  void Gossip::checkWrite(const std::shared_ptr<Peer> &peer) {
+  void Gossip::checkWrite(const PeerPtr &peer) {
     if (peer->writing_) {
       return;
     }

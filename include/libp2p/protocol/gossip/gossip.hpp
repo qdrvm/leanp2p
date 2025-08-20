@@ -181,11 +181,11 @@ namespace libp2p::protocol::gossip {
                    const MessageId &message_id,
                    const MessagePtr &message);
 
-    bool onMessage(const std::shared_ptr<Peer> &peer, BytesIn encoded);
+    bool onMessage(const PeerPtr &peer, BytesIn encoded);
 
-    Rpc &getBatch(const std::shared_ptr<Peer> &peer);
+    Rpc &getBatch(const PeerPtr &peer);
 
-    void checkWrite(const std::shared_ptr<Peer> &peer);
+    void checkWrite(const PeerPtr &peer);
 
     void updatePeerKind(const PeerPtr &peer, const ProtocolName &protocol);
 
@@ -213,10 +213,11 @@ namespace libp2p::protocol::gossip {
     std::shared_ptr<crypto::CryptoProvider> crypto_provider_;
     Config config_;
     StreamProtocols protocols_;
-    event::Handle on_peer_sub_;
+    event::Handle on_peer_connected_sub_;
+    event::Handle on_peer_disconnected_sub_;
     std::unordered_map<TopicHash, std::shared_ptr<Topic>, qtils::BytesStdHash>
         topics_;
-    std::unordered_map<PeerId, std::shared_ptr<Peer>> peers_;
+    std::unordered_map<PeerId, PeerPtr> peers_;
     PublishConfigSigning publish_config_;
     DuplicateCache<MessageId, qtils::BytesStdHash> duplicate_cache_;
     ChoosePeers choose_peers_;
