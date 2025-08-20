@@ -28,6 +28,30 @@ namespace libp2p::protocol::gossip {
   constexpr qtils::BytesN<14> kSigningContext{
       'l', 'i', 'b', 'p', '2', 'p', '-', 'p', 'u', 'b', 's', 'u', 'b', ':'};
 
+  inline void toProtobuf(gossipsub::pb::Message &pb_publish,
+                         const Message &message) {
+    if (message.from.has_value()) {
+      *pb_publish.mutable_from() = qtils::byte2str(message.from->toVector());
+    }
+
+    *pb_publish.mutable_data() = qtils::byte2str(message.data);
+
+    if (message.seqno.has_value()) {
+      auto &pb_seqno = *pb_publish.mutable_seqno();
+      pb_seqno.resize(sizeof(Seqno));
+      boost::endian::store_big_u64(qtils::str2byte(pb_seqno.data()),
+                                   *message.seqno);
+    }
+
+    *pb_publish.mutable_topic() = qtils::byte2str(message.topic);
+
+    Bytes signature;
+    if (message.signature.has_value()) {
+      signature = *message.signature;
+      *pb_publish.mutable_signature() = qtils::byte2str(*message.signature);
+    }
+  }
+
   inline Bytes getSignable(gossipsub::pb::Message &pb_publish) {
     pb_publish.clear_signature();
     pb_publish.clear_key();
@@ -257,6 +281,13 @@ namespace libp2p::protocol::gossip {
                                              publish_config_.last_seq_no,
                                              topic.topic_hash_);
     ++publish_config_.last_seq_no;
+
+    gossipsub::pb::Message pb_signable;
+    toProtobuf(pb_signable, *message);
+    auto signable = getSignable(pb_signable);
+    message->signature =
+        crypto_provider_->sign(signable, id_mgr_->getKeyPair().privateKey)
+            .value();
 
     auto message_id = config_.message_id_fn(*message);
     if (duplicate_cache_.contains(message_id)) {
@@ -527,36 +558,7 @@ namespace libp2p::protocol::gossip {
 
         for (auto &publish : message->publish) {
           auto &pb_publish = *pb_message.add_publish();
-          assert(self->config_.message_authenticity
-                 == MessageAuthenticity::Signed);
-
-          if (publish->from.has_value()) {
-            *pb_publish.mutable_from() =
-                qtils::byte2str(publish->from->toVector());
-          }
-
-          *pb_publish.mutable_data() = qtils::byte2str(publish->data);
-
-          if (publish->seqno.has_value()) {
-            auto &pb_seqno = *pb_publish.mutable_seqno();
-            pb_seqno.resize(sizeof(Seqno));
-            boost::endian::store_big_u64(qtils::str2byte(pb_seqno.data()),
-                                         *publish->seqno);
-          }
-
-          *pb_publish.mutable_topic() = qtils::byte2str(publish->topic);
-
-          Bytes signature;
-          if (publish->signature.has_value()) {
-            signature = *publish->signature;
-          } else {
-            auto signable = getSignable(pb_publish);
-            signature =
-                self->crypto_provider_
-                    ->sign(signable, self->id_mgr_->getKeyPair().privateKey)
-                    .value();
-          }
-          *pb_publish.mutable_signature() = qtils::byte2str(signature);
+          toProtobuf(pb_publish, *publish);
         }
 
         for (auto &topic_hash : message->graft) {
