@@ -110,5 +110,7 @@ namespace libp2p::protocol::gossip {
 
     size_t idontwant_message_size_threshold = 1000;
     bool idontwant_on_publish = false;
+
+    std::chrono::seconds iwant_followup_time{3};
   };
 }  // namespace libp2p::protocol::gossip

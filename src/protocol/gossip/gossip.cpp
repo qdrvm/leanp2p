@@ -225,7 +225,8 @@ namespace libp2p::protocol::gossip {
                 std::chrono::system_clock::now().time_since_epoch()}
                                                   .count()),
         },
-        duplicate_cache_{config.duplicate_cache_time} {
+        duplicate_cache_{config.duplicate_cache_time},
+        gossip_promises_{config_.iwant_followup_time} {
     assert(config_.message_id_fn);
 
     for (auto &protocol : config_.protocol_versions | std::views::keys) {
@@ -395,8 +396,6 @@ namespace libp2p::protocol::gossip {
       return;
     }
     duplicate_cache_.insert(message_id);
-    message_cache_.emplace(message_id, MessageCacheEntry{message});
-    topic.history_.add(message_id);
     broadcast(topic, std::nullopt, message_id, message);
   }
 
@@ -486,8 +485,6 @@ namespace libp2p::protocol::gossip {
         continue;
       }
       topic->receive_channel_.send(message->data);
-      message_cache_.emplace(message_id, MessageCacheEntry{message});
-      topic->history_.add(message_id);
       broadcast(*topic, peer->peer_id_, message_id, message);
     }
 
@@ -553,11 +550,13 @@ namespace libp2p::protocol::gossip {
         if (duplicate_cache_.contains(message_id)) {
           continue;
         }
-        // TODO: gossip_promises
+        if (gossip_promises_.contains(message_id)) {
+          continue;
+        }
         // TODO: count_sent_iwant
         // TODO: max_ihave_length
         // TODO: shuffle
-        // TODO: gossip_promises.add_promise
+        gossip_promises_.add(message_id, peer);
         getBatch(peer).iwant.emplace(message_id);
       }
     }
@@ -600,6 +599,10 @@ namespace libp2p::protocol::gossip {
                          std::optional<PeerId> from,
                          const MessageId &message_id,
                          const MessagePtr &message) {
+    message_cache_.emplace(message_id, MessageCacheEntry{message});
+    topic.history_.add(message_id);
+    gossip_promises_.remove(message_id);
+
     auto publish = not from.has_value();
     auto send_idontwant = (not publish or config_.idontwant_on_publish);
     if (send_idontwant) {
@@ -611,7 +614,9 @@ namespace libp2p::protocol::gossip {
       }
     }
     if (not publish and send_idontwant) {
-      // TODO: gossip_promises.peers_for_message
+      gossip_promises_.peers(message_id, [&](const PeerPtr &peer) {
+        getBatch(peer).idontwant.emplace(message_id);
+      });
     }
     auto add_peer = [&](PeerPtr peer) {
       if (from == peer->peer_id_) {
@@ -802,6 +807,8 @@ namespace libp2p::protocol::gossip {
         topic->backoff_.shift();
       }
 
+      apply_iwant_penalties();
+
       for (auto &[topic_hash, topic] : topics_) {
         // TODO: remove negative score from mesh
 
@@ -920,5 +927,11 @@ namespace libp2p::protocol::gossip {
 
   bool Gossip::is_backoff_with_slack(Topic &topic, const PeerPtr &peer) {
     return topic.backoff_.get(peer) > 0;
+  }
+
+  void Gossip::apply_iwant_penalties() {
+    for (auto &[peer, count] : gossip_promises_.clearExpired()) {
+      // TODO: score
+    }
   }
 }  // namespace libp2p::protocol::gossip

@@ -118,6 +118,7 @@ namespace libp2p::protocol::gossip::time_cache {
     TimeCache<K, qtils::Empty, H> cache_{kTtl};
   };
 
+  template <typename Peer>
   class GossipPromises {
    public:
     GossipPromises(Ttl ttl) : ttl_{ttl} {}
@@ -127,9 +128,9 @@ namespace libp2p::protocol::gossip::time_cache {
     }
 
     void add(const MessageId &message_id,
-             const PeerId &peer_id,
+             const Peer &peer,
              Time now = Clock::now()) {
-      map_[message_id].emplace(peer_id, now + ttl_);
+      map_[message_id].emplace(peer, now + ttl_);
     }
 
     void remove(const MessageId &message_id) {
@@ -146,7 +147,7 @@ namespace libp2p::protocol::gossip::time_cache {
     }
 
     auto clearExpired(Time now = Clock::now()) {
-      std::unordered_map<PeerId, size_t> result;
+      std::unordered_map<Peer, size_t> result;
       for (auto it1 = map_.begin(); it1 != map_.end();) {
         auto &map2 = it1->second;
         for (auto it2 = map2.begin(); it2 != map2.end();) {
@@ -169,7 +170,7 @@ namespace libp2p::protocol::gossip::time_cache {
    private:
     Ttl ttl_;
     std::unordered_map<MessageId,
-                       std::unordered_map<PeerId, Time>,
+                       std::unordered_map<Peer, Time>,
                        qtils::BytesStdHash>
         map_;
   };

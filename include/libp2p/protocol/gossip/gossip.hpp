@@ -207,6 +207,8 @@ namespace libp2p::protocol::gossip {
     Backoff get_backoff_time(Topic &topic, const PeerPtr &peer);
     bool is_backoff_with_slack(Topic &topic, const PeerPtr &peer);
 
+    void apply_iwant_penalties();
+
     std::shared_ptr<boost::asio::io_context> io_context_;
     std::shared_ptr<host::BasicHost> host_;
     std::shared_ptr<peer::IdentityManager> id_mgr_;
@@ -223,5 +225,6 @@ namespace libp2p::protocol::gossip {
     ChoosePeers choose_peers_;
     std::unordered_map<MessageId, MessageCacheEntry, qtils::BytesStdHash>
         message_cache_;
+    GossipPromises<PeerPtr> gossip_promises_;
   };
 }  // namespace libp2p::protocol::gossip
