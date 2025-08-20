@@ -7,8 +7,11 @@
 #include <libp2p/peer/peer_id.hpp>
 
 #include <boost/assert.hpp>
+#include <libp2p/crypto/key_marshaller.hpp>
+#include <libp2p/crypto/key_validator/key_validator_impl.hpp>
 #include <libp2p/crypto/sha/sha256.hpp>
 #include <libp2p/multi/multibase_codec/codecs/base58.hpp>
+#include <qtils/bytes.hpp>
 
 OUTCOME_CPP_DEFINE_CATEGORY(libp2p::peer, PeerId::FactoryError, e) {
   using E = libp2p::peer::PeerId::FactoryError;
@@ -96,6 +99,16 @@ namespace libp2p::peer {
   PeerId::FactoryResult PeerId::fromBytes(BytesIn v) {
     OUTCOME_TRY(mh, Multihash::createFromBytes(v));
     return fromHash(mh);
+  }
+
+  std::optional<crypto::PublicKey> PeerId::publicKey() const {
+    static crypto::marshaller::KeyMarshaller marshaller{
+        std::make_shared<crypto::validator::KeyValidatorImpl>(nullptr)};
+    if (auto key = marshaller.unmarshalPublicKey(
+            crypto::ProtobufKey{qtils::asVec(hash_.getHash())})) {
+      return key.value();
+    }
+    return std::nullopt;
   }
 }  // namespace libp2p::peer
 

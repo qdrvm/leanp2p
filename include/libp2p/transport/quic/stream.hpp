@@ -37,7 +37,7 @@ namespace libp2p::connection {
     outcome::result<void> close() override;
     void reset() override;
     outcome::result<bool> isInitiator() const override;
-    outcome::result<PeerId> remotePeerId() const override;
+    PeerId remotePeerId() const override;
     outcome::result<Multiaddress> localMultiaddr() const override;
     outcome::result<Multiaddress> remoteMultiaddr() const override;
 

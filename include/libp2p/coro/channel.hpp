@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <boost/asio/detached.hpp>
 #include <boost/asio/experimental/channel.hpp>
 #include <libp2p/coro/asio.hpp>
 #include <libp2p/coro/coro.hpp>
@@ -20,7 +21,9 @@ namespace libp2p {
     }
 
     void send(outcome::result<T> result) {
-      channel_.try_send(boost::system::error_code{}, std::move(result));
+      channel_.async_send(boost::system::error_code{},
+                          std::move(result),
+                          boost::asio::detached);
     }
 
     boost::asio::experimental::channel<void(boost::system::error_code,

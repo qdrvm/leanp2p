@@ -70,7 +70,7 @@ namespace libp2p::transport {
     return local_peer_;
   }
 
-  outcome::result<PeerId> QuicConnection::remotePeer() const {
+  PeerId QuicConnection::remotePeer() const {
     return peer_;
   }
 

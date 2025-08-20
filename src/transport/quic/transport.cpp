@@ -67,10 +67,6 @@ namespace libp2p::transport {
     return detail::asQuic(ma).has_value();
   }
 
-  peer::ProtocolName QuicTransport::getProtocolId() const {
-    return "/quic/1.0.0";
-  }
-
   std::shared_ptr<lsquic::Engine> QuicTransport::makeClient(
       boost::asio::ip::udp protocol) const {
     return std::make_shared<lsquic::Engine>(io_context_,

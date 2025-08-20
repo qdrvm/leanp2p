@@ -52,7 +52,7 @@ namespace libp2p::transport {
 
     // SecureConnection
     outcome::result<PeerId> localPeer() const override;
-    outcome::result<PeerId> remotePeer() const override;
+    PeerId remotePeer() const override;
     outcome::result<crypto::PublicKey> remotePublicKey() const override;
 
     // CapableConnection
