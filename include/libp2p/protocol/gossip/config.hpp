@@ -107,5 +107,8 @@ namespace libp2p::protocol::gossip {
     size_t max_ihave_length = 5000;
 
     bool flood_publish = true;
+
+    size_t idontwant_message_size_threshold = 1000;
+    bool idontwant_on_publish = false;
   };
 }  // namespace libp2p::protocol::gossip

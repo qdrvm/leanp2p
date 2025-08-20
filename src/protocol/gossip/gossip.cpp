@@ -30,6 +30,8 @@ namespace libp2p::protocol::gossip {
 
   inline void toProtobuf(gossipsub::pb::Message &pb_publish,
                          const Message &message) {
+    pb_publish.Clear();
+
     if (message.from.has_value()) {
       *pb_publish.mutable_from() = qtils::byte2str(message.from->toVector());
     }
@@ -373,7 +375,7 @@ namespace libp2p::protocol::gossip {
     duplicate_cache_.insert(message_id);
     message_cache_.emplace(message_id, MessageCacheEntry{message});
     topic.history_.add(message_id);
-    broadcast(topic, std::nullopt, message);
+    broadcast(topic, std::nullopt, message_id, message);
   }
 
   bool Gossip::onMessage(const std::shared_ptr<Peer> &peer, BytesIn encoded) {
@@ -464,7 +466,7 @@ namespace libp2p::protocol::gossip {
       topic->receive_channel_.send(message->data);
       message_cache_.emplace(message_id, MessageCacheEntry{message});
       topic->history_.add(message_id);
-      broadcast(*topic, peer->peer_id_, message);
+      broadcast(*topic, peer->peer_id_, message_id, message);
     }
 
     for (auto &pb_graft : pb_message.control().graft()) {
@@ -551,9 +553,21 @@ namespace libp2p::protocol::gossip {
           if (count > config_.gossip_retransimission) {
             continue;
           }
-          // TODO: dont_send
+          if (peer->dont_send_.contains(message_id)) {
+            continue;
+          }
           getBatch(peer).publish.emplace_back(cache_it->second.message);
         }
+      }
+    }
+
+    for (auto &pb_idontwant : pb_message.control().idontwant()) {
+      if (not peer->isGossipsub()) {
+        return false;
+      }
+      for (auto &pb_message : pb_idontwant.message_ids()) {
+        auto message_id = qtils::asVec(qtils::str2byte(pb_message));
+        peer->dont_send_.insert(message_id);
       }
     }
 
@@ -562,8 +576,21 @@ namespace libp2p::protocol::gossip {
 
   void Gossip::broadcast(Topic &topic,
                          std::optional<PeerId> from,
+                         const MessageId &message_id,
                          const MessagePtr &message) {
     auto publish = not from.has_value();
+    auto send_idontwant = (not publish or config_.idontwant_on_publish);
+    if (send_idontwant) {
+      gossipsub::pb::Message pb_publish;
+      toProtobuf(pb_publish, *message);
+      if (pb_publish.ByteSizeLong()
+          <= config_.idontwant_message_size_threshold) {
+        send_idontwant = false;
+      }
+    }
+    if (not publish and send_idontwant) {
+      // TODO: gossip_promises.peers_for_message
+    }
     auto add_peer = [&](PeerPtr peer) {
       if (from == peer->peer_id_) {
         return;
@@ -571,7 +598,11 @@ namespace libp2p::protocol::gossip {
       if (message->from == peer->peer_id_) {
         return;
       }
-      getBatch(peer).publish.emplace_back(message);
+      auto &batch = getBatch(peer);
+      if (send_idontwant) {
+        batch.idontwant.emplace(message_id);
+      }
+      batch.publish.emplace_back(message);
     };
     if (publish and config_.flood_publish) {
       for (auto &peer : topic.peers_) {
@@ -637,7 +668,7 @@ namespace libp2p::protocol::gossip {
         assert(not message->subscriptions.empty()
                or not message->publish.empty() or not message->graft.empty()
                or not message->prune.empty() or not message->ihave.empty()
-               or not message->iwant.empty());
+               or not message->iwant.empty() or not message->idontwant.empty());
 
         for (auto &[topic_hash, subscribe] : message->subscriptions) {
           auto &pb_subscription = *pb_message.add_subscriptions();
@@ -676,6 +707,15 @@ namespace libp2p::protocol::gossip {
           auto &pb_messages =
               *pb_message.mutable_control()->add_iwant()->mutable_message_ids();
           for (auto &message : message->iwant) {
+            *pb_messages.Add() = qtils::byte2str(message);
+          }
+        }
+
+        if (not message->idontwant.empty()) {
+          auto &pb_messages = *pb_message.mutable_control()
+                                   ->add_idontwant()
+                                   ->mutable_message_ids();
+          for (auto &message : message->idontwant) {
             *pb_messages.Add() = qtils::byte2str(message);
           }
         }
@@ -806,6 +846,11 @@ namespace libp2p::protocol::gossip {
         for (auto &message_id : topic->history_.shift()) {
           message_cache_.erase(message_id);
         }
+      }
+
+      auto now = time_cache::Clock::now();
+      for (auto &peer : peers_ | std::views::values) {
+        peer->dont_send_.clearExpired(now);
       }
 
       timer.expires_after(config_.heartbeat_interval);

@@ -55,6 +55,7 @@ namespace libp2p::protocol::gossip {
     std::unordered_map<TopicHash, std::vector<MessageId>, qtils::BytesStdHash>
         ihave;
     std::unordered_set<MessageId, qtils::BytesStdHash> iwant;
+    std::unordered_set<MessageId, qtils::BytesStdHash> idontwant;
   };
 
   class History {
@@ -118,6 +119,7 @@ namespace libp2p::protocol::gossip {
     std::unordered_set<StreamPtr> streams_in_;
     std::optional<Rpc> batch_;
     bool writing_ = false;
+    IDontWantCache<MessageId, qtils::BytesStdHash> dont_send_;
   };
 
   class ChoosePeers {
@@ -176,6 +178,7 @@ namespace libp2p::protocol::gossip {
 
     void broadcast(Topic &topic,
                    std::optional<PeerId> from,
+                   const MessageId &message_id,
                    const MessagePtr &message);
 
     bool onMessage(const std::shared_ptr<Peer> &peer, BytesIn encoded);

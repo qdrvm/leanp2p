@@ -28,6 +28,7 @@ message ControlMessage {
   repeated ControlIWant iwant = 2;
   repeated ControlGraft graft = 3;
   repeated ControlPrune prune = 4;
+  repeated ControlIDontWant idontwant = 5;
 }
 
 message ControlIHave {
@@ -46,4 +47,8 @@ message ControlGraft {
 message ControlPrune {
   optional string topic_id = 1;
   optional uint64 backoff = 3;
+}
+
+message ControlIDontWant {
+  repeated bytes message_ids = 1;
 }
