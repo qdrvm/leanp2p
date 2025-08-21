@@ -2,6 +2,6 @@
 #include <print>
 
 int main() {
-  auto address = libp2p::multi::Multiaddress::create("/ip4/127.0.0.1/tcp/8080");
+  auto address = libp2p::multi::Multiaddress::create("/ip4/127.0.0.1/tcp/8080").value();
   std::println("Created multiaddress: {}", address);
 }
