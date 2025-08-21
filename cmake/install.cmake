@@ -1,7 +1,7 @@
 include(GNUInstallDirs)
 
 function(libp2p_install targets)
-  install(TARGETS ${targets} EXPORT libp2pTargets
+  install(TARGETS ${targets} EXPORT libp2pConfig
       LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
       ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
       RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
@@ -16,7 +16,7 @@ install(
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 install(
-    EXPORT libp2pTargets
+    EXPORT libp2pConfig
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/libp2p
     NAMESPACE p2p::
 )
