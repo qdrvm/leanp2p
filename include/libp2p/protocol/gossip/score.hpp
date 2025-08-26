@@ -31,9 +31,9 @@ namespace libp2p::protocol::gossip::score {
                                       DeliveryStatusIgnored>;
 
   struct DeliveryRecord {
-    DeliveryStatus status;
-    Time first_seen;
-    std::unordered_set<PeerId> peers;
+    DeliveryStatus status{};           // default Unknown
+    Time first_seen{};                 // set on first sighting
+    std::unordered_set<PeerId> peers;  // peers seen before validation
   };
 
   struct MeshActive {
@@ -60,12 +60,20 @@ namespace libp2p::protocol::gossip::score {
 
   class Score {
    public:
-    Score(ScoreConfig params)
+    // Construct with immutable parameters; delivery records are retained for a
+    // short window.
+    explicit Score(ScoreConfig params)
         : params_{std::move(params)}, deliveries_{kTimeCacheDuration} {}
 
+    // Fast threshold check helper.
     bool below(const PeerId &peer_id, double threshold) {
       return score(peer_id) < threshold;
     }
+
+    // Compute the full score for a peer by aggregating topic weights and global
+    // terms. Terms correspond to spec: P1 (time in mesh), P2 (first msg
+    // deliveries), P3 (mesh delivery deficit), P3b (mesh failure penalty), P4
+    // (invalids^2), P5 (app), P7 (behaviour penalty^2), plus slow peer penalty.
     double score(const PeerId &peer_id) {
       auto it = peer_stats_.find(peer_id);
       if (it == peer_stats_.end()) {
@@ -127,6 +135,7 @@ namespace libp2p::protocol::gossip::score {
       }
       return score;
     }
+
     void addPenalty(const PeerId &peer_id, size_t count) {
       auto it = peer_stats_.find(peer_id);
       if (it == peer_stats_.end()) {
@@ -134,6 +143,7 @@ namespace libp2p::protocol::gossip::score {
       }
       it->second.behaviour_penalty += static_cast<double>(count);
     }
+
     void graft(const PeerId &peer_id, const TopicHash &topic) {
       auto it = peer_stats_.find(peer_id);
       if (it == peer_stats_.end()) {
@@ -147,6 +157,7 @@ namespace libp2p::protocol::gossip::score {
         topic_stats->mesh_message_deliveries_active = false;
       }
     }
+
     void prune(const PeerId &peer_id, const TopicHash &topic) {
       auto it = peer_stats_.find(peer_id);
       if (it == peer_stats_.end()) {
@@ -164,6 +175,8 @@ namespace libp2p::protocol::gossip::score {
         topic_stats->mesh_active.reset();
       }
     }
+
+    // Called when a duplicate of msg_id was received from peer_id on topic.
     void duplicateMessage(const PeerId &peer_id,
                           const MessageId &msg_id,
                           const TopicHash &topic) {
@@ -172,6 +185,10 @@ namespace libp2p::protocol::gossip::score {
         return;
       }
       if (std::holds_alternative<DeliveryStatusUnknown>(record.status)) {
+        // First time we see this id -> remember first_seen.
+        if (record.peers.empty()) {
+          record.first_seen = Clock::now();
+        }
         record.peers.emplace(peer_id);
       } else if (auto *valid =
                      std::get_if<DeliveryStatusValid>(&record.status)) {
@@ -181,14 +198,49 @@ namespace libp2p::protocol::gossip::score {
         markInvalidMessageDelivery(peer_id, topic);
       }
     }
+
+    // Mark message as valid at current time, update first/mesh deliveries.
     void validateMessage(const PeerId &peer_id,
                          const MessageId &msg_id,
                          const TopicHash &topic) {
-      deliveries_.getOrDefault(msg_id);
+      auto &record = deliveries_.getOrDefault(msg_id);
+      auto now = Clock::now();
+
+      if (auto *valid = std::get_if<DeliveryStatusValid>(&record.status)) {
+        // Already validated: treat as duplicate post-validation.
+        markDuplicateMessageDelivery(peer_id, topic, valid->time);
+        return;
+      }
+      if (std::holds_alternative<DeliveryStatusInvalid>(record.status)) {
+        // Already invalidated: penalize.
+        markInvalidMessageDelivery(peer_id, topic);
+        return;
+      }
+
+      // Transition Unknown -> Valid and update stats.
+      record.status = DeliveryStatusValid{now};
+      if (record.first_seen == Time{}) {
+        record.first_seen = now;
+      }
+      record.peers.emplace(peer_id);
+
+      // Credit first-message delivery to the validating peer.
+      markFirstMessageDelivery(peer_id, topic);
+
+      // Credit mesh-message deliveries for peers that already sent this
+      // before validation, within the delivery window (skip the first peer).
+      for (const auto &p : record.peers) {
+        if (p == peer_id) {
+          continue;
+        }
+        markDuplicateMessageDelivery(p, topic, now);
+      }
     }
+
     void connect(const PeerId &peer_id) {
       peer_stats_[peer_id].expires_at.reset();
     }
+
     void disconnect(const PeerId &peer_id) {
       auto it = peer_stats_.find(peer_id);
       if (it == peer_stats_.end()) {
@@ -278,12 +330,33 @@ namespace libp2p::protocol::gossip::score {
     }
 
    private:
-    TopicStats *statsOrDefault(PeerStats &peer, const TopicHash &topic) {
+    TopicStats *statsOrDefault(PeerStats &peer, const TopicHash &topic) const {
       auto it = peer.topics.find(topic);
-      if (it == peer.topics.end() and params_.topics.contains(topic)) {
+      if (it == peer.topics.end() && params_.topics.contains(topic)) {
         it = peer.topics.emplace(topic, TopicStats{}).first;
       }
       return it == peer.topics.end() ? nullptr : &it->second;
+    }
+
+    // Increment FMD within cap if topic is configured.
+    void markFirstMessageDelivery(const PeerId &peer_id,
+                                  const TopicHash &topic) {
+      auto it = peer_stats_.find(peer_id);
+      if (it == peer_stats_.end()) {
+        return;
+      }
+      auto *topic_stats = statsOrDefault(it->second, topic);
+      if (!topic_stats) {
+        return;
+      }
+      auto params_it = params_.topics.find(topic);
+      if (params_it == params_.topics.end()) {
+        return;
+      }
+      const auto &topic_params = params_it->second;
+      topic_stats->first_message_deliveries =
+          std::min(topic_stats->first_message_deliveries + 1.0,
+                   topic_params.first_message_deliveries_cap);
     }
 
     void markDuplicateMessageDelivery(const PeerId &peer_id,
@@ -293,20 +366,26 @@ namespace libp2p::protocol::gossip::score {
       if (it == peer_stats_.end()) {
         return;
       }
-      if (auto *topic_stats = statsOrDefault(it->second, topic)) {
-        if (topic_stats->mesh_active) {
-          auto &topic_params = params_.topics.at(topic);
-          if (validated_time) {
-            auto now = Clock::now();
-            auto window_time =
-                *validated_time + topic_params.mesh_message_deliveries_window;
-            if (now > window_time) {
-              return;
-            }
-            topic_stats->mesh_message_deliveries =
-                std::min(topic_stats->mesh_message_deliveries + 1,
-                         topic_params.mesh_message_deliveries_cap);
+      auto *topic_stats = statsOrDefault(it->second, topic);
+      if (!topic_stats) {
+        return;
+      }
+      if (topic_stats->mesh_active) {
+        auto params_it = params_.topics.find(topic);
+        if (params_it == params_.topics.end()) {
+          return;
+        }
+        const auto &topic_params = params_it->second;
+        if (validated_time) {
+          auto now = Clock::now();
+          auto window_time =
+              *validated_time + topic_params.mesh_message_deliveries_window;
+          if (now > window_time) {
+            return;
           }
+          topic_stats->mesh_message_deliveries =
+              std::min(topic_stats->mesh_message_deliveries + 1,
+                       topic_params.mesh_message_deliveries_cap);
         }
       }
     }
