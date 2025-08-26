@@ -274,7 +274,6 @@ namespace libp2p::protocol::gossip {
   }
 
   void Gossip::start() {
-    std::println("LocalPeerId {}", host_->getId().toBase58());
     host_->listenProtocol(shared_from_this());
     auto on_peer_connected = [WEAK_SELF](
                                  std::weak_ptr<connection::CapableConnection>
@@ -282,7 +281,6 @@ namespace libp2p::protocol::gossip {
       WEAK_LOCK(connection);
       WEAK_LOCK(self);
       auto peer_id = connection->remotePeer();
-      std::println("ConnectionEstablished {}", peer_id.toBase58());
       auto out = connection->isInitiator();
       auto peer_it = self->peers_.find(peer_id);
       if (peer_it == self->peers_.end()) {
@@ -423,9 +421,6 @@ namespace libp2p::protocol::gossip {
       auto topic_hash = qtils::asVec(qtils::str2byte(pb_subscribe.topic_id()));
       auto topic_it = topics_.find(topic_hash);
       if (pb_subscribe.subscribe()) {
-        std::println("Subscribed {} {}",
-                     peer->peer_id_.toBase58(),
-                     qtils::byte2str(topic_hash));
         peer->topics_.emplace(topic_hash);
         if (topic_it != topics_.end()) {
           auto &topic = topic_it->second;
