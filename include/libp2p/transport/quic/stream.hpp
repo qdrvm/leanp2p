@@ -13,11 +13,14 @@ namespace libp2p::transport {
 }  // namespace libp2p::transport
 
 namespace libp2p::transport::lsquic {
+  class Engine;
   struct StreamCtx;
 }  // namespace libp2p::transport::lsquic
 
 namespace libp2p::connection {
   class QuicStream : public Stream {
+    friend libp2p::transport::lsquic::Engine;
+
    public:
     QuicStream(std::shared_ptr<transport::QuicConnection> conn,
                transport::lsquic::StreamCtx *stream_ctx,

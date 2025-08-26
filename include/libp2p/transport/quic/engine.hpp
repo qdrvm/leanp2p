@@ -83,6 +83,7 @@ namespace libp2p::transport::lsquic {
      * Stream read operation arguments.
      */
     std::optional<CoroHandler<void>> reading;
+    bool want_flush = false;
   };
 
   /**
@@ -115,6 +116,7 @@ namespace libp2p::transport::lsquic {
         ConnCtx *conn_ctx);
     ConnectionPtrCoroOutcome asyncAccept();
     void wantProcess();
+    void wantFlush(StreamCtx *stream_ctx);
 
    private:
     void process();
@@ -131,6 +133,7 @@ namespace libp2p::transport::lsquic {
     Multiaddress local_;
     lsquic_engine_t *engine_ = nullptr;
     bool started_ = false;
+    std::deque<std::weak_ptr<connection::QuicStream>> want_flush_;
     bool want_process_ = false;
     std::optional<Connecting> connecting_;
     struct Reading {
