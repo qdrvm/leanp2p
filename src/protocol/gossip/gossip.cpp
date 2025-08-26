@@ -495,6 +495,7 @@ namespace libp2p::protocol::gossip {
       }
       score_.validateMessage(peer->peer_id_, message_id, message->topic);
       topic->receive_channel_.send(message->data);
+      score_.deliver_message(peer->peer_id_, message_id, message->topic);
       broadcast(*topic, peer->peer_id_, message_id, message);
     }
 
