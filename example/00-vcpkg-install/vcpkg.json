@@ -1,0 +1,7 @@
+{
+  "name": "leanp2p-example",
+  "version": "0.1.0",
+  "dependencies": [
+    "leanp2p"
+  ]
+}

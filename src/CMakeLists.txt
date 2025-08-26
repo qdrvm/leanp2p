@@ -16,7 +16,7 @@ add_subdirectory(security)
 add_subdirectory(transport)
 
 # Create main libp2p interface library that combines all components
-add_library(libp2p INTERFACE)
+libp2p_add_library(libp2p INTERFACE)
 
 # Start with basic component libraries and essential dependencies
 target_link_libraries(libp2p
@@ -66,5 +66,6 @@ target_link_libraries(libp2p
 
 target_include_directories(libp2p
     INTERFACE
-        ${CMAKE_SOURCE_DIR}/include
+        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include/>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )

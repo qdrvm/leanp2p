@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-add_library(p2p_ed25519_provider
+libp2p_add_library(p2p_ed25519_provider
     ed25519_provider_impl.cpp
     )
 

@@ -1,4 +1,4 @@
-add_library(p2p_connection_manager
+libp2p_add_library(p2p_connection_manager
     connection_manager.cpp
 )
 target_link_libraries(p2p_connection_manager
@@ -8,7 +8,7 @@ target_link_libraries(p2p_connection_manager
     p2p_peer_id
 )
 
-add_library(p2p_transport_manager
+libp2p_add_library(p2p_transport_manager
     transport_manager.cpp
 )
 target_link_libraries(p2p_transport_manager
@@ -17,7 +17,7 @@ target_link_libraries(p2p_transport_manager
     p2p_logger
 )
 
-add_library(p2p_listener_manager
+libp2p_add_library(p2p_listener_manager
     listener_manager.cpp
 )
 target_link_libraries(p2p_listener_manager
@@ -30,7 +30,7 @@ target_link_libraries(p2p_listener_manager
     p2p_connection_manager
 )
 
-add_library(p2p_dialer
+libp2p_add_library(p2p_dialer
     dialer.cpp
 )
 target_link_libraries(p2p_dialer
