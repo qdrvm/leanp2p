@@ -48,9 +48,7 @@ namespace libp2p::protocol::gossip {
 
     *pb_publish.mutable_topic() = qtils::byte2str(message.topic);
 
-    Bytes signature;
     if (message.signature.has_value()) {
-      signature = *message.signature;
       *pb_publish.mutable_signature() = qtils::byte2str(*message.signature);
     }
   }
