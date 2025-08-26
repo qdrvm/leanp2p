@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-add_library(p2p_converters
+libp2p_add_library(p2p_converters
     converter_utils.cpp
     conversion_error.cpp
     ip_v4_converter.cpp

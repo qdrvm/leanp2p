@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-add_library(p2p_tls
+libp2p_add_library(p2p_tls
     ssl_context.cpp
     tls_details.cpp
     )

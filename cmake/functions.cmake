@@ -105,7 +105,7 @@ function(add_proto_library NAME)
     list(APPEND SOURCES ${H} ${C})
   endforeach ()
 
-  add_library(${NAME}
+  libp2p_add_library(${NAME}
       ${SOURCES}
       )
   target_link_libraries(${NAME}
@@ -119,7 +119,6 @@ function(add_proto_library NAME)
       )
 
   disable_clang_tidy(${NAME})
-  libp2p_install(${NAME})
 
   add_dependencies(generated ${NAME})
 endfunction()

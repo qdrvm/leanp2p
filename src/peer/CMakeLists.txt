@@ -8,14 +8,14 @@ add_subdirectory(address_repository)
 add_subdirectory(key_repository)
 add_subdirectory(protocol_repository)
 
-add_library(p2p_peer_errors
+libp2p_add_library(p2p_peer_errors
     errors.cpp
     )
 target_link_libraries(p2p_peer_errors
     Boost::boost
     )
 
-add_library(p2p_peer_id
+libp2p_add_library(p2p_peer_id
     peer_id.cpp
     )
 target_link_libraries(p2p_peer_id
@@ -25,7 +25,7 @@ target_link_libraries(p2p_peer_id
     p2p_sha
     )
 
-add_library(p2p_peer_address
+libp2p_add_library(p2p_peer_address
     peer_address.cpp
     )
 target_link_libraries(p2p_peer_address
@@ -36,7 +36,7 @@ target_link_libraries(p2p_peer_address
     p2p_peer_id
     )
 
-add_library(p2p_identity_manager
+libp2p_add_library(p2p_identity_manager
     identity_manager.cpp
 )
 target_link_libraries(p2p_identity_manager
@@ -44,7 +44,7 @@ target_link_libraries(p2p_identity_manager
     p2p_key_marshaller
 )
 
-add_library(p2p_peer_repository
+libp2p_add_library(p2p_peer_repository
     peer_repository.cpp
 )
 target_link_libraries(p2p_peer_repository

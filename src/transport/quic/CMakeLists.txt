@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-add_library(p2p_quic
+libp2p_add_library(p2p_quic
     connection.cpp
     engine.cpp
     listener.cpp
