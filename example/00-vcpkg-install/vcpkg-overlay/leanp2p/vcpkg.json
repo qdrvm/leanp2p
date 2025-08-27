@@ -2,6 +2,9 @@
   "name": "leanp2p",
   "version": "0.1.0",
   "dependencies": [
+    "vcpkg-cmake",
+    "vcpkg-cmake-config",
+
     "boost-asio",
     "boost-beast",
     "boost-di",

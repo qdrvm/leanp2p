@@ -7,7 +7,7 @@
 add_subdirectory(converters)
 add_subdirectory(multibase_codec)
 
-add_library(p2p_uvarint
+libp2p_add_library(p2p_uvarint
     uvarint.cpp
     )
 target_link_libraries(p2p_uvarint
@@ -17,7 +17,7 @@ target_link_libraries(p2p_uvarint
     )
 
 
-add_library(p2p_multihash
+libp2p_add_library(p2p_multihash
     multihash.cpp
     )
 target_link_libraries(p2p_multihash
@@ -27,7 +27,7 @@ target_link_libraries(p2p_multihash
     )
 
 
-add_library(p2p_multiaddress
+libp2p_add_library(p2p_multiaddress
     multiaddress.cpp
     )
 target_link_libraries(p2p_multiaddress
@@ -36,7 +36,7 @@ target_link_libraries(p2p_multiaddress
     fmt::fmt
     )
 
-add_library(p2p_cid
+libp2p_add_library(p2p_cid
     content_identifier.cpp
     content_identifier_codec.cpp
     )

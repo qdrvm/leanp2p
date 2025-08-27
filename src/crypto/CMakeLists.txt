@@ -10,21 +10,21 @@ add_subdirectory(rsa_provider)
 add_subdirectory(secp256k1_provider)
 add_subdirectory(sha)
 
-add_library(p2p_crypto_error
+libp2p_add_library(p2p_crypto_error
     error.cpp
 )
 target_link_libraries(p2p_crypto_error
     Boost::boost
 )
 
-add_library(p2p_crypto_key
+libp2p_add_library(p2p_crypto_key
     key.cpp
 )
 target_link_libraries(p2p_crypto_key
     Boost::boost
 )
 
-add_library(p2p_crypto_common
+libp2p_add_library(p2p_crypto_common
     common_functions.cpp
 )
 target_link_libraries(p2p_crypto_common
@@ -33,7 +33,7 @@ target_link_libraries(p2p_crypto_common
     OpenSSL::Crypto
 )
 
-add_library(p2p_key_marshaller
+libp2p_add_library(p2p_key_marshaller
     key_marshaller.cpp
 )
 target_link_libraries(p2p_key_marshaller

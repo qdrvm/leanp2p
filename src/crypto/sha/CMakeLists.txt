@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-add_library(p2p_sha
+libp2p_add_library(p2p_sha
     sha1.cpp
     sha256.cpp
     sha512.cpp

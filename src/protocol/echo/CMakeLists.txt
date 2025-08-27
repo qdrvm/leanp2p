@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-add_library(p2p_protocol_echo
+libp2p_add_library(p2p_protocol_echo
     echo.cpp
     )
 target_link_libraries(p2p_protocol_echo

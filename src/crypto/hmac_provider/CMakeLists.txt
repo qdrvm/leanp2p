@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-add_library(p2p_hmac_provider
+libp2p_add_library(p2p_hmac_provider
     hmac_provider_impl.cpp
     hmac_provider_ctr_impl.cpp
     )
