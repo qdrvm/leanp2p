@@ -26,9 +26,11 @@
 #include <qtils/option_take.hpp>
 
 namespace libp2p::protocol::gossip {
+  // Signing context prefix for message signing/verification (libp2p-pubsub:).
   constexpr qtils::BytesN<14> kSigningContext{
       'l', 'i', 'b', 'p', '2', 'p', '-', 'p', 'u', 'b', 's', 'u', 'b', ':'};
 
+  // Convert internal Message to protobuf RPC Message for wire format.
   inline void toProtobuf(gossipsub::pb::Message &pb_publish,
                          const Message &message) {
     pb_publish.Clear();
@@ -53,6 +55,7 @@ namespace libp2p::protocol::gossip {
     }
   }
 
+  // Build the signable bytes: context prefix + protobuf with signature/key cleared.
   inline Bytes getSignable(gossipsub::pb::Message &pb_publish) {
     pb_publish.clear_signature();
     pb_publish.clear_key();
@@ -61,6 +64,7 @@ namespace libp2p::protocol::gossip {
     return signable;
   }
 
+  // Default message ID function (from + seqno) used for deduplication.
   MessageId defaultMessageIdFn(const Message &message) {
     std::string str;
     static auto empty_from = PeerId::fromBytes(Bytes{0, 1, 0}).value();
@@ -69,6 +73,7 @@ namespace libp2p::protocol::gossip {
     return qtils::asVec(qtils::str2byte(std::string_view{str}));
   }
 
+  // Mesh parameter accessors (topic-scoped overrides could be added later).
   size_t Config::mesh_n_for_topic(const TopicHash &topic_hash) const {
     return default_mesh_params.mesh_n;
   }
@@ -86,6 +91,7 @@ namespace libp2p::protocol::gossip {
     return default_mesh_params.mesh_outbound_min;
   }
 
+  // Subscription batch helper: toggle subscribe/unsubscribe in a set-like map.
   void Rpc::subscribe(TopicHash topic_hash, bool subscribe) {
     auto it = subscriptions.emplace(topic_hash, subscribe).first;
     if (it->second != subscribe) {
@@ -93,6 +99,7 @@ namespace libp2p::protocol::gossip {
     }
   }
 
+  // Sliding window of recent message IDs per topic for gossip emission.
   History::History(size_t slots) {
     assert(slots > 0);
     slots_.resize(slots);
@@ -102,6 +109,7 @@ namespace libp2p::protocol::gossip {
     slots_.front().emplace_back(message_id);
   }
 
+  // Advance the window by one tick, returning expired IDs.
   std::vector<MessageId> History::shift() {
     auto removed = std::move(slots_.back());
     slots_.pop_back();
@@ -109,6 +117,7 @@ namespace libp2p::protocol::gossip {
     return removed;
   }
 
+  // Collect up to N slots worth of IDs for IHAVE.
   std::vector<MessageId> History::get(size_t slots) {
     std::vector<MessageId> result;
     size_t i = 0;
@@ -122,11 +131,13 @@ namespace libp2p::protocol::gossip {
     return result;
   }
 
+  // Topic backoff with discrete slots aligned to heartbeat ticks.
   TopicBackoff::TopicBackoff(const Config &config) {
     slots_.resize(config.prune_backoff / config.heartbeat_interval
                   + config.backoff_slack + 1);
   }
 
+  // Remaining slots of backoff for a peer in this topic.
   size_t TopicBackoff::get(const PeerPtr &peer) {
     auto peer_it = peers_.find(peer);
     if (peer_it == peers_.end()) {
@@ -135,6 +146,7 @@ namespace libp2p::protocol::gossip {
     return saturating_sub(peer_it->second.first, slot_);
   }
 
+  // Set/update backoff horizon for a peer, keeping the latest.
   void TopicBackoff::update(const PeerPtr &peer, size_t slots) {
     if (slots == 0) {
       return;
@@ -158,6 +170,7 @@ namespace libp2p::protocol::gossip {
     }
   }
 
+  // Move to next backoff slot; release peers whose backoff expired.
   void TopicBackoff::shift() {
     auto &slot = slots_.at(slot_ % slots_.size());
     for (auto &peer : slot) {
@@ -167,16 +180,19 @@ namespace libp2p::protocol::gossip {
     ++slot_;
   }
 
+  // Receive next message payload from a subscribed topic (for local consumer).
   CoroOutcome<Bytes> Topic::receive() {
     co_return co_await receive_channel_.receive();
   }
 
+  // Publish a message to a topic: sign, dedupe, and broadcast.
   void Topic::publish(BytesIn message) {
     if (auto gossip = weak_gossip_.lock()) {
       gossip->publish(*this, message);
     }
   }
 
+  // Count outbound connections present in the mesh for the topic.
   size_t Topic::meshOutCount() {
     size_t count = 0;
     for (auto &peer : mesh_peers_) {
@@ -187,6 +203,7 @@ namespace libp2p::protocol::gossip {
     return count;
   }
 
+  // Peer classification helpers for protocol feature gating.
   Peer::Peer(PeerId peer_id, bool out)
       : peer_id_{std::move(peer_id)}, out_{out} {}
 
@@ -209,6 +226,7 @@ namespace libp2p::protocol::gossip {
        and peer_kind_.value() >= PeerKind::Gossipsubv1_2;
   }
 
+  // Construct Gossip, initialize caches/score, and build preferred protocol list.
   Gossip::Gossip(std::shared_ptr<boost::asio::io_context> io_context,
                  std::shared_ptr<host::BasicHost> host,
                  std::shared_ptr<peer::IdentityManager> id_mgr,
@@ -239,10 +257,12 @@ namespace libp2p::protocol::gossip {
                       });
   }
 
+  // Protocol IDs to advertise for stream negotiation.
   StreamProtocols Gossip::getProtocolIds() const {
     return protocols_;
   }
 
+  // Handle inbound stream: set peer kind, track stream, and read RPCs in a loop.
   void Gossip::handle(StreamAndProtocol stream_and_protocol) {
     auto &[stream, protocol] = stream_and_protocol;
     auto peer_id = stream->remotePeerId();
@@ -273,6 +293,7 @@ namespace libp2p::protocol::gossip {
     });
   }
 
+  // Start event listeners, timers, and open outbound streams on new connections.
   void Gossip::start() {
     host_->listenProtocol(shared_from_this());
     auto on_peer_connected = [WEAK_SELF](
@@ -348,6 +369,7 @@ namespace libp2p::protocol::gossip {
     });
   }
 
+  // Subscribe locally to a topic: create Topic, announce to peers, and seed mesh.
   std::shared_ptr<Topic> Gossip::subscribe(TopicHash topic_hash) {
     auto topic_it = topics_.find(topic_hash);
     if (topic_it == topics_.end()) {
@@ -383,6 +405,7 @@ namespace libp2p::protocol::gossip {
     return subscribe(qtils::asVec(qtils::str2byte(topic_hash)));
   }
 
+  // Local publish path: create signed message, dedupe, and broadcast to peers.
   void Gossip::publish(Topic &topic, BytesIn data) {
     assert(config_.message_authenticity == MessageAuthenticity::Signed);
     auto message = std::make_shared<Message>(host_->getId(),
@@ -406,17 +429,21 @@ namespace libp2p::protocol::gossip {
     broadcast(topic, std::nullopt, message_id, message);
   }
 
+  // Inbound RPC handler: subscriptions, publish, and control messages.
   bool Gossip::onMessage(const PeerPtr &peer, BytesIn encoded) {
+    // Decode RPC; drop if malformed.
     auto pb_message_result = protobufDecode<gossipsub::pb::RPC>(encoded);
     if (not pb_message_result.has_value()) {
       return false;
     }
     auto &pb_message = pb_message_result.value();
 
+    // Graylist gate: ignore peer below threshold.
     if (score_.below(peer->peer_id_, config_.score.graylist_threshold)) {
       return true;
     }
 
+    // Handle SUBSCRIBE/UNSUBSCRIBE and opportunistic GRAFT on subscribe.
     for (auto &pb_subscribe : pb_message.subscriptions()) {
       auto topic_hash = qtils::asVec(qtils::str2byte(pb_subscribe.topic_id()));
       auto topic_it = topics_.find(topic_hash);
@@ -445,6 +472,7 @@ namespace libp2p::protocol::gossip {
       }
     }
 
+    // Handle PUBLISH: verify signature, dedupe, deliver locally, and relay.
     for (auto &pb_publish : pb_message.publish()) {
       auto message = std::make_shared<Message>();
 
@@ -499,6 +527,7 @@ namespace libp2p::protocol::gossip {
       broadcast(*topic, peer->peer_id_, message_id, message);
     }
 
+    // Handle GRAFT: accept (add to mesh) or PRUNE with backoff.
     for (auto &pb_graft : pb_message.control().graft()) {
       if (not peer->isGossipsub()) {
         return false;
@@ -543,6 +572,7 @@ namespace libp2p::protocol::gossip {
       }
     }
 
+    // Handle PRUNE: remove from mesh and update backoff (v1.1+ honors backoff).
     for (auto &pb_prune : pb_message.control().prune()) {
       if (not peer->isGossipsub()) {
         return false;
@@ -555,10 +585,12 @@ namespace libp2p::protocol::gossip {
       remove_peer_from_mesh(topic_hash, peer, backoff, true);
     }
 
+    // Handle IHAVE: select a capped subset of unknown IDs and enqueue IWANTs.
     if (not handle_ihave(peer, pb_message)) {
       return false;
     }
 
+    // Handle IWANT: serve up to retransmission cap; honor dont_send_ and score.
     for (auto &pb_iwant : pb_message.control().iwant()) {
       if (not peer->isGossipsub()) {
         return false;
@@ -583,6 +615,7 @@ namespace libp2p::protocol::gossip {
       }
     }
 
+    // Handle IDONTWANT: mark IDs to avoid sending to this peer.
     for (auto &pb_idontwant : pb_message.control().idontwant()) {
       if (not peer->isGossipsub()) {
         return false;
@@ -596,6 +629,7 @@ namespace libp2p::protocol::gossip {
     return true;
   }
 
+  // Fanout to peers with mesh/flood rules and optional IDONTWANT side channel.
   void Gossip::broadcast(Topic &topic,
                          std::optional<PeerId> from,
                          const MessageId &message_id,
@@ -665,6 +699,7 @@ namespace libp2p::protocol::gossip {
     }
   }
 
+  // Ensure a per-peer batch exists and schedule writer if idle.
   Rpc &Gossip::getBatch(const PeerPtr &peer) {
     if (not peer->batch_) {
       peer->batch_.emplace();
@@ -673,6 +708,7 @@ namespace libp2p::protocol::gossip {
     return peer->batch_.value();
   }
 
+  // Writer coroutine: build RPC from batch and send via varint-length framing.
   void Gossip::checkWrite(const PeerPtr &peer) {
     if (peer->writing_) {
       return;
@@ -764,6 +800,7 @@ namespace libp2p::protocol::gossip {
     });
   }
 
+  // Record negotiated protocol features for the peer.
   void Gossip::updatePeerKind(const PeerPtr &peer,
                               const ProtocolName &protocol) {
     if (not peer->peer_kind_) {
@@ -771,6 +808,7 @@ namespace libp2p::protocol::gossip {
     }
   }
 
+  // Add peer to mesh and enqueue GRAFT control message.
   void Gossip::graft(Topic &topic, const PeerPtr &peer) {
     assert(not topic.mesh_peers_.contains(peer));
     topic.mesh_peers_.emplace(peer);
@@ -778,6 +816,7 @@ namespace libp2p::protocol::gossip {
     getBatch(peer).graft.emplace(topic.topic_hash_);
   }
 
+  // Enqueue PRUNE for peer (with backoff for v1.1+) and update score/backoff.
   void Gossip::make_prune(Topic &topic, const PeerPtr &peer) {
     if (not peer->isGossipsub()) {
       return;
@@ -791,6 +830,7 @@ namespace libp2p::protocol::gossip {
     getBatch(peer).prune.emplace(topic.topic_hash_, backoff);
   }
 
+  // Remove peer from mesh and update backoff if requested.
   void Gossip::remove_peer_from_mesh(const TopicHash &topic_hash,
                                      const PeerPtr &peer,
                                      std::optional<Backoff> backoff,
@@ -808,6 +848,8 @@ namespace libp2p::protocol::gossip {
     }
   }
 
+  // Heartbeat maintenance: prune bad peers, balance mesh, opportunistic graft,
+  // emit gossip, expire history/cache, and clear expired dont_send_ marks.
   void Gossip::heartbeat() {
     ++heartbeat_ticks_;
     for (auto &topic : topics_ | std::views::values) {
@@ -928,6 +970,7 @@ namespace libp2p::protocol::gossip {
     }
   }
 
+  // Emit IHAVE to non-mesh peers above gossip threshold with recent message IDs.
   void Gossip::emit_gossip() {
     for (auto &[topic_hash, topic] : topics_) {
       auto message_ids = topic->history_.get(config_.history_gossip);
@@ -946,7 +989,8 @@ namespace libp2p::protocol::gossip {
                                          config_.gossip_factor * n);
                })) {
         auto peer_message_ids = message_ids;
-        choose_peers_.shuffle(message_ids);
+        // Shuffle the per‑peer copy, not the shared vector.
+        choose_peers_.shuffle(peer_message_ids);
         if (peer_message_ids.size() > config_.max_ihave_length) {
           peer_message_ids.resize(config_.max_ihave_length);
         }
@@ -955,6 +999,7 @@ namespace libp2p::protocol::gossip {
     }
   }
 
+  // Update per-topic backoff for a peer using heartbeat ticks + slack.
   void Gossip::update_backoff(Topic &topic,
                               const PeerPtr &peer,
                               Backoff backoff) {
@@ -962,21 +1007,25 @@ namespace libp2p::protocol::gossip {
         peer, backoff / config_.heartbeat_interval + config_.backoff_slack);
   }
 
+  // Compute remaining backoff time for a peer in a topic.
   Backoff Gossip::get_backoff_time(Topic &topic, const PeerPtr &peer) {
     return saturating_sub(topic.backoff_.get(peer), config_.backoff_slack)
          * config_.heartbeat_interval;
   }
 
+  // Check if peer is still in backoff (with slack) for a topic.
   bool Gossip::is_backoff_with_slack(Topic &topic, const PeerPtr &peer) {
     return topic.backoff_.get(peer) > 0;
   }
 
+  // Apply penalties to peers that didn't deliver promised messages in time.
   void Gossip::apply_iwant_penalties() {
     for (auto &[peer, count] : gossip_promises_.clearExpired()) {
       score_.addPenalty(peer->peer_id_, count);
     }
   }
 
+  // Process IHAVE set: cap per-tick, filter by score/backoff, and enqueue IWANT.
   bool Gossip::handle_ihave(const PeerPtr &peer,
                             const gossipsub::pb::RPC &pb_message) {
     auto &pb_ihaves = pb_message.control().ihave();
