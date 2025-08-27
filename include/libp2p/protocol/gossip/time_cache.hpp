@@ -19,7 +19,8 @@ namespace libp2p::protocol::gossip::time_cache {
   using Time = Clock::time_point;
 
   // Time-based TTL cache used for gossipsub message duplicate checks.
-  // TTL semantics: entries expire a fixed time after insertion; reads do not extend TTL.
+  // TTL semantics: entries expire a fixed time after insertion; reads do not
+  // extend TTL.
   template <typename K, typename V, typename H = std::hash<K>>
   class TimeCache {
    public:
@@ -44,13 +45,14 @@ namespace libp2p::protocol::gossip::time_cache {
       }
     }
 
-    // Get value for key, inserting a default and scheduling its expiration if absent.
+    // Get value for key, inserting a default and scheduling its expiration if
+    // absent.
     V &getOrDefault(const K &key, Time now = Clock::now()) {
       clearExpired(now);
       auto it = map_.find(key);
       if (it == map_.end()) {
         it = map_.emplace(key, V()).first;
-        expirations_.emplace_back(now + ttl_, key);
+        expirations_.emplace_back(now + ttl_, it);
       }
       return it->second;
     }
@@ -69,7 +71,8 @@ namespace libp2p::protocol::gossip::time_cache {
 
     Ttl ttl_;
     Map map_;
-    std::deque<std::pair<Time, K>> expirations_;
+    std::deque<std::pair<Clock::time_point, typename Map::iterator>>
+        expirations_;
   };
 
   // DuplicateCache: TTL-backed set for duplicate suppression.
