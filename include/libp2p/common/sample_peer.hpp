@@ -40,19 +40,19 @@ namespace libp2p {
             }
             crypto::KeyPair keypair{
                 crypto::PublicKey{{key_type, {}}},
-                crypto::PrivateKey{{key_type, qtils::asVec(private_key)}},
+                crypto::PrivateKey{{key_type, qtils::ByteVec(private_key)}},
             };
             switch (key_type) {
               case crypto::Key::Type::Ed25519: {
                 crypto::ed25519::Ed25519ProviderImpl ed25519;
                 keypair.publicKey.data =
-                    qtils::asVec(ed25519.derive(private_key).value());
+                    qtils::ByteVec(ed25519.derive(private_key).value());
                 break;
               }
               case crypto::Key::Type::Secp256k1: {
                 crypto::secp256k1::Secp256k1ProviderImpl secp256k1{nullptr};
                 keypair.publicKey.data =
-                    qtils::asVec(secp256k1.derive(private_key).value());
+                    qtils::ByteVec(secp256k1.derive(private_key).value());
                 break;
               }
               default: {
