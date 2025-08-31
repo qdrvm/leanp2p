@@ -17,12 +17,14 @@
 namespace libp2p {
   struct SamplePeer {
     SamplePeer(size_t index,
+               uint16_t port,
                crypto::KeyPair keypair,
                PeerId peer_id,
                Multiaddress listen,
                Multiaddress connect,
                PeerInfo connect_info)
         : index{index},
+          port{port},
           keypair{keypair},
           peer_id{peer_id},
           listen{listen},
@@ -31,7 +33,7 @@ namespace libp2p {
 
     SamplePeer(size_t index, crypto::Key::Type key_type)
         : SamplePeer{[&] {
-            auto port = 10000 + index;
+            uint16_t port = 10000 + index;
             crypto::ed25519::PrivateKey private_key;
             for (size_t i = 0; i < private_key.size(); ++i) {
               private_key.at(i) = i + index;
@@ -73,6 +75,7 @@ namespace libp2p {
                     .value();
             return SamplePeer{
                 index,
+                port,
                 keypair,
                 peer_id,
                 listen,
@@ -90,6 +93,7 @@ namespace libp2p {
     }
 
     size_t index;
+    uint16_t port;
     crypto::KeyPair keypair;
     PeerId peer_id;
     Multiaddress listen;
