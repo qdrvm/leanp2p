@@ -8,7 +8,7 @@ add_proto_library(p2p_gossip_proto
     gossip.proto
     )
 
-add_library(p2p_gossip
+libp2p_add_library(p2p_gossip
     gossip.cpp
     )
 target_link_libraries(p2p_gossip
