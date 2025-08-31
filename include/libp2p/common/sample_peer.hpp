@@ -8,6 +8,7 @@
 
 #include <libp2p/crypto/ed25519_provider/ed25519_provider_impl.hpp>
 #include <libp2p/crypto/key_marshaller.hpp>
+#include <libp2p/crypto/secp256k1_provider/secp256k1_provider_impl.hpp>
 #include <libp2p/multi/multiaddress.hpp>
 #include <libp2p/peer/identity_manager.hpp>
 #include <libp2p/peer/peer_info.hpp>
@@ -15,36 +16,47 @@
 
 namespace libp2p {
   struct SamplePeer {
-    SamplePeer(crypto::KeyPair keypair,
+    SamplePeer(size_t index,
+               crypto::KeyPair keypair,
                PeerId peer_id,
                Multiaddress listen,
                Multiaddress connect,
                PeerInfo connect_info)
-        : keypair{keypair},
+        : index{index},
+          keypair{keypair},
           peer_id{peer_id},
           listen{listen},
           connect{connect},
           connect_info{connect_info} {}
 
-    SamplePeer(uint32_t index)
-        : SamplePeer{[index] {
+    SamplePeer(size_t index, crypto::Key::Type key_type)
+        : SamplePeer{[&] {
             auto port = 10000 + index;
-            crypto::ed25519::Ed25519ProviderImpl ed25519;
             crypto::ed25519::PrivateKey private_key;
             for (size_t i = 0; i < private_key.size(); ++i) {
               private_key.at(i) = i + index;
             }
-            auto public_key = ed25519.derive(private_key).value();
             crypto::KeyPair keypair{
-                crypto::PublicKey{{
-                    crypto::Key::Type::Ed25519,
-                    qtils::asVec(public_key),
-                }},
-                crypto::PrivateKey{{
-                    crypto::Key::Type::Ed25519,
-                    qtils::asVec(private_key),
-                }},
+                crypto::PublicKey{{key_type, {}}},
+                crypto::PrivateKey{{key_type, qtils::asVec(private_key)}},
             };
+            switch (key_type) {
+              case crypto::Key::Type::Ed25519: {
+                crypto::ed25519::Ed25519ProviderImpl ed25519;
+                keypair.publicKey.data =
+                    qtils::asVec(ed25519.derive(private_key).value());
+                break;
+              }
+              case crypto::Key::Type::Secp256k1: {
+                crypto::secp256k1::Secp256k1ProviderImpl secp256k1{nullptr};
+                keypair.publicKey.data =
+                    qtils::asVec(secp256k1.derive(private_key).value());
+                break;
+              }
+              default: {
+                abort();
+              }
+            }
             auto peer_id =
                 peer::IdentityManager{
                     keypair,
@@ -60,6 +72,7 @@ namespace libp2p {
                     std::format("{}/p2p/{}", listen, peer_id.toBase58()))
                     .value();
             return SamplePeer{
+                index,
                 keypair,
                 peer_id,
                 listen,
@@ -68,6 +81,15 @@ namespace libp2p {
             };
           }()} {}
 
+    static SamplePeer makeEd25519(size_t index) {
+      return SamplePeer{index, crypto::Key::Type::Ed25519};
+    }
+
+    static SamplePeer makeSecp256k1(size_t index) {
+      return SamplePeer{index, crypto::Key::Type::Secp256k1};
+    }
+
+    size_t index;
     crypto::KeyPair keypair;
     PeerId peer_id;
     Multiaddress listen;

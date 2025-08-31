@@ -34,17 +34,17 @@ namespace libp2p::event {
     template <typename InputIterator>
     result_type operator()(InputIterator first, InputIterator last) {
       while (first != last) {
-        try {
-          *first;
-        } catch (const std::exception &e) {
-          // drop
-          log::createLogger("Bus")->error(
-              "Exception in signal handler, ignored, what={}", e.what());
-        } catch (...) {
-          // drop
-          log::createLogger("Bus")->error(
-              "Exception in signal handler, ignored");
-        }
+        // try {
+        *first;
+        // } catch (const std::exception &e) {
+        //   // drop
+        //   log::createLogger("Bus")->error(
+        //       "Exception in signal handler, ignored, what={}", e.what());
+        // } catch (...) {
+        //   // drop
+        //   log::createLogger("Bus")->error(
+        //       "Exception in signal handler, ignored");
+        // }
         ++first;
       }
     }
