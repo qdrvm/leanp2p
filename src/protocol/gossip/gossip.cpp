@@ -27,7 +27,7 @@
 
 namespace libp2p::protocol::gossip {
   // Signing context prefix for message signing/verification (libp2p-pubsub:).
-  constexpr qtils::BytesN<14> kSigningContext{
+  constexpr qtils::ByteArr<14> kSigningContext{
       'l', 'i', 'b', 'p', '2', 'p', '-', 'p', 'u', 'b', 's', 'u', 'b', ':'};
 
   // Convert internal Message to protobuf RPC Message for wire format.
@@ -55,11 +55,12 @@ namespace libp2p::protocol::gossip {
     }
   }
 
-  // Build the signable bytes: context prefix + protobuf with signature/key cleared.
+  // Build the signable bytes: context prefix + protobuf with signature/key
+  // cleared.
   inline Bytes getSignable(gossipsub::pb::Message &pb_publish) {
     pb_publish.clear_signature();
     pb_publish.clear_key();
-    auto signable = qtils::asVec(kSigningContext);
+    auto signable = qtils::ByteVec(kSigningContext);
     qtils::append(signable, protobufEncode(pb_publish));
     return signable;
   }
@@ -70,7 +71,7 @@ namespace libp2p::protocol::gossip {
     static auto empty_from = PeerId::fromBytes(Bytes{0, 1, 0}).value();
     str += (message.from.has_value() ? *message.from : empty_from).toBase58();
     str += std::to_string(message.seqno.value_or(0));
-    return qtils::asVec(qtils::str2byte(std::string_view{str}));
+    return qtils::ByteVec(qtils::str2byte(std::string_view{str}));
   }
 
   // Mesh parameter accessors (topic-scoped overrides could be added later).
@@ -226,7 +227,8 @@ namespace libp2p::protocol::gossip {
        and peer_kind_.value() >= PeerKind::Gossipsubv1_2;
   }
 
-  // Construct Gossip, initialize caches/score, and build preferred protocol list.
+  // Construct Gossip, initialize caches/score, and build preferred protocol
+  // list.
   Gossip::Gossip(std::shared_ptr<boost::asio::io_context> io_context,
                  std::shared_ptr<host::BasicHost> host,
                  std::shared_ptr<peer::IdentityManager> id_mgr,
@@ -262,7 +264,8 @@ namespace libp2p::protocol::gossip {
     return protocols_;
   }
 
-  // Handle inbound stream: set peer kind, track stream, and read RPCs in a loop.
+  // Handle inbound stream: set peer kind, track stream, and read RPCs in a
+  // loop.
   void Gossip::handle(StreamAndProtocol stream_and_protocol) {
     auto &[stream, protocol] = stream_and_protocol;
     auto peer_id = stream->remotePeerId();
@@ -293,7 +296,8 @@ namespace libp2p::protocol::gossip {
     });
   }
 
-  // Start event listeners, timers, and open outbound streams on new connections.
+  // Start event listeners, timers, and open outbound streams on new
+  // connections.
   void Gossip::start() {
     host_->listenProtocol(shared_from_this());
     auto on_peer_connected = [WEAK_SELF](
@@ -369,7 +373,8 @@ namespace libp2p::protocol::gossip {
     });
   }
 
-  // Subscribe locally to a topic: create Topic, announce to peers, and seed mesh.
+  // Subscribe locally to a topic: create Topic, announce to peers, and seed
+  // mesh.
   std::shared_ptr<Topic> Gossip::subscribe(TopicHash topic_hash) {
     auto topic_it = topics_.find(topic_hash);
     if (topic_it == topics_.end()) {
@@ -402,14 +407,14 @@ namespace libp2p::protocol::gossip {
   }
 
   std::shared_ptr<Topic> Gossip::subscribe(std::string_view topic_hash) {
-    return subscribe(qtils::asVec(qtils::str2byte(topic_hash)));
+    return subscribe(qtils::ByteVec(qtils::str2byte(topic_hash)));
   }
 
   // Local publish path: create signed message, dedupe, and broadcast to peers.
   void Gossip::publish(Topic &topic, BytesIn data) {
     assert(config_.message_authenticity == MessageAuthenticity::Signed);
     auto message = std::make_shared<Message>(host_->getId(),
-                                             qtils::asVec(data),
+                                             qtils::ByteVec(data),
                                              publish_config_.last_seq_no,
                                              topic.topic_hash_);
     ++publish_config_.last_seq_no;
@@ -445,7 +450,8 @@ namespace libp2p::protocol::gossip {
 
     // Handle SUBSCRIBE/UNSUBSCRIBE and opportunistic GRAFT on subscribe.
     for (auto &pb_subscribe : pb_message.subscriptions()) {
-      auto topic_hash = qtils::asVec(qtils::str2byte(pb_subscribe.topic_id()));
+      auto topic_hash =
+          qtils::ByteVec(qtils::str2byte(pb_subscribe.topic_id()));
       auto topic_it = topics_.find(topic_hash);
       if (pb_subscribe.subscribe()) {
         peer->topics_.emplace(topic_hash);
@@ -484,7 +490,7 @@ namespace libp2p::protocol::gossip {
       auto &from = from_result.value();
       message->from.emplace(from);
 
-      message->data = qtils::asVec(qtils::str2byte(pb_publish.data()));
+      message->data = qtils::ByteVec(qtils::str2byte(pb_publish.data()));
 
       if (pb_publish.seqno().size() != sizeof(Seqno)) {
         continue;
@@ -492,13 +498,13 @@ namespace libp2p::protocol::gossip {
       message->seqno = boost::endian::load_big_u64(
           qtils::str2byte(pb_publish.seqno().data()));
 
-      message->topic = qtils::asVec(qtils::str2byte(pb_publish.topic()));
+      message->topic = qtils::ByteVec(qtils::str2byte(pb_publish.topic()));
 
       gossipsub::pb::Message pb_signable = pb_publish;
       auto signable = getSignable(pb_signable);
 
       message->signature =
-          qtils::asVec(qtils::str2byte(pb_publish.signature()));
+          qtils::ByteVec(qtils::str2byte(pb_publish.signature()));
 
       auto public_key = from.publicKey();
       if (not public_key.has_value()) {
@@ -532,7 +538,7 @@ namespace libp2p::protocol::gossip {
       if (not peer->isGossipsub()) {
         return false;
       }
-      auto topic_hash = qtils::asVec(qtils::str2byte(pb_graft.topic_id()));
+      auto topic_hash = qtils::ByteVec(qtils::str2byte(pb_graft.topic_id()));
       peer->topics_.emplace(topic_hash);
 
       auto topic_it = topics_.find(topic_hash);
@@ -577,7 +583,7 @@ namespace libp2p::protocol::gossip {
       if (not peer->isGossipsub()) {
         return false;
       }
-      auto topic_hash = qtils::asVec(qtils::str2byte(pb_prune.topic_id()));
+      auto topic_hash = qtils::ByteVec(qtils::str2byte(pb_prune.topic_id()));
       std::optional<Backoff> backoff;
       if (pb_prune.has_backoff()) {
         backoff = Backoff{pb_prune.backoff()};
@@ -599,7 +605,7 @@ namespace libp2p::protocol::gossip {
         continue;
       }
       for (auto &pb_message : pb_iwant.message_ids()) {
-        auto message_id = qtils::asVec(qtils::str2byte(pb_message));
+        auto message_id = qtils::ByteVec(qtils::str2byte(pb_message));
         auto cache_it = message_cache_.find(message_id);
         if (cache_it != message_cache_.end()) {
           auto &count = cache_it->second.iwant[peer->peer_id_];
@@ -621,7 +627,7 @@ namespace libp2p::protocol::gossip {
         return false;
       }
       for (auto &pb_message : pb_idontwant.message_ids()) {
-        auto message_id = qtils::asVec(qtils::str2byte(pb_message));
+        auto message_id = qtils::ByteVec(qtils::str2byte(pb_message));
         peer->dont_send_.insert(message_id);
       }
     }
@@ -970,7 +976,8 @@ namespace libp2p::protocol::gossip {
     }
   }
 
-  // Emit IHAVE to non-mesh peers above gossip threshold with recent message IDs.
+  // Emit IHAVE to non-mesh peers above gossip threshold with recent message
+  // IDs.
   void Gossip::emit_gossip() {
     for (auto &[topic_hash, topic] : topics_) {
       auto message_ids = topic->history_.get(config_.history_gossip);
@@ -1025,7 +1032,8 @@ namespace libp2p::protocol::gossip {
     }
   }
 
-  // Process IHAVE set: cap per-tick, filter by score/backoff, and enqueue IWANT.
+  // Process IHAVE set: cap per-tick, filter by score/backoff, and enqueue
+  // IWANT.
   bool Gossip::handle_ihave(const PeerPtr &peer,
                             const gossipsub::pb::RPC &pb_message) {
     auto &pb_ihaves = pb_message.control().ihave();
@@ -1050,12 +1058,12 @@ namespace libp2p::protocol::gossip {
       if (score_.below(peer->peer_id_, config_.score.gossip_threshold)) {
         continue;
       }
-      auto topic_hash = qtils::asVec(qtils::str2byte(pb_ihave.topic_id()));
+      auto topic_hash = qtils::ByteVec(qtils::str2byte(pb_ihave.topic_id()));
       if (not topics_.contains(topic_hash)) {
         continue;
       }
       for (auto &pb_message : pb_ihave.message_ids()) {
-        auto message_id = qtils::asVec(qtils::str2byte(pb_message));
+        auto message_id = qtils::ByteVec(qtils::str2byte(pb_message));
         if (duplicate_cache_.contains(message_id)) {
           continue;
         }

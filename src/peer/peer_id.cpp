@@ -105,7 +105,7 @@ namespace libp2p::peer {
     static crypto::marshaller::KeyMarshaller marshaller{
         std::make_shared<crypto::validator::KeyValidatorImpl>(nullptr)};
     if (auto key = marshaller.unmarshalPublicKey(
-            crypto::ProtobufKey{qtils::asVec(hash_.getHash())})) {
+            crypto::ProtobufKey{qtils::ByteVec(hash_.getHash())})) {
       return key.value();
     }
     return std::nullopt;
