@@ -29,11 +29,11 @@ namespace {
 
 namespace libp2p::multi::detail {
   std::string encodeBase16Upper(BytesIn bytes) {
-    return fmt::format("{:X}", bytes);
+    return fmt::format("{:XX}", qtils::Hex{bytes});
   }
 
   std::string encodeBase16Lower(BytesIn bytes) {
-    return fmt::format("{:x}", bytes);
+    return fmt::format("{:xx}", qtils::Hex{bytes});
   }
 
   outcome::result<Bytes> decodeBase16Upper(std::string_view string) {
@@ -42,7 +42,7 @@ namespace libp2p::multi::detail {
     if (!encodingCaseIsUpper(string)) {
       return BaseError::NON_UPPERCASE_INPUT;
     }
-    return qtils::unhex(string);
+    return qtils::unhex<Bytes>(string);
   }
 
   outcome::result<Bytes> decodeBase16Lower(std::string_view string) {
@@ -51,7 +51,7 @@ namespace libp2p::multi::detail {
     if (encodingCaseIsUpper(string)) {
       return BaseError::NON_LOWERCASE_INPUT;
     }
-    return qtils::unhex(string);
+    return qtils::unhex<Bytes>(string);
   }
 
 }  // namespace libp2p::multi::detail

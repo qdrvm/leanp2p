@@ -58,10 +58,10 @@ namespace libp2p::multi {
     std::vector<uint8_t> bytes;
     if (cid.version == ContentIdentifier::Version::V1) {
       UVarint version(static_cast<uint64_t>(cid.version));
-      qtils::append(bytes, version.toBytes());
+      bytes.append_range(version.toBytes());
       UVarint type(static_cast<uint64_t>(cid.content_type));
-      qtils::append(bytes, type.toBytes());
-      qtils::append(bytes, cid.content_address.toBuffer());
+      bytes.append_range(type.toBytes());
+      bytes.append_range(cid.content_address.toBuffer());
     } else if (cid.version == ContentIdentifier::Version::V0) {
       if (cid.content_type != MulticodecType::Code::DAG_PB) {
         return EncodeError::INVALID_CONTENT_TYPE;

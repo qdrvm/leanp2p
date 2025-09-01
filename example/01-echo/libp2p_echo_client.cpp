@@ -13,7 +13,7 @@ int main(int argc, char **argv) {
   libp2p::simpleLoggingSystem();
   auto log = libp2p::log::createLogger("EchoClient");
 
-  auto connect_info = libp2p::SamplePeer{0}.connect_info;
+  auto connect_info = libp2p::SamplePeer::makeEd25519(0).connect_info;
   if (argc >= 2) {
     auto address = libp2p::Multiaddress::create(argv[1]).value();
     auto peer_id =
@@ -21,7 +21,7 @@ int main(int argc, char **argv) {
     connect_info = {peer_id, {address}};
   }
   const std::string message = "Hello from C++";
-  libp2p::SamplePeer sample_peer{1};
+  auto sample_peer = libp2p::SamplePeer::makeEd25519(1);
 
   auto injector = libp2p::injector::makeHostInjector(
       libp2p::injector::useKeyPair(sample_peer.keypair),

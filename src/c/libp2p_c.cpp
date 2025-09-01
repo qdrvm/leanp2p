@@ -187,7 +187,8 @@ libp2p_host_t *libp2p_host_create(libp2p_context_t *ctx,
   if (keypair_seed) {
     index = static_cast<uint32_t>(std::hash<std::string>{}(keypair_seed));
   }
-  libp2p::SamplePeer sample_peer{index % 1000};  // keep port reasonable
+  auto sample_peer =
+      libp2p::SamplePeer::makeEd25519(index % 1000);  // keep port reasonable
 
   auto injector = libp2p::injector::makeHostInjector(
       boost::di::bind<boost::asio::io_context>().to(ctx->io_context),

@@ -12,7 +12,7 @@
 #include <qtils/bytes.hpp>
 
 namespace libp2p::security {
-  constexpr qtils::BytesN<1 + 6> kAlpn{6, 'l', 'i', 'b', 'p', '2', 'p'};
+  constexpr qtils::ByteArr<1 + 6> kAlpn{6, 'l', 'i', 'b', 'p', '2', 'p'};
 
   static int alpnSelect(SSL *ssl,
                         const unsigned char **out,

@@ -21,7 +21,7 @@ int main(int argc, char *argv[]) {
   auto log = libp2p::log::createLogger("EchoServer");
 
   // Get sample peer config by index
-  libp2p::SamplePeer sample_peer{0};
+  auto sample_peer = libp2p::SamplePeer::makeEd25519(0);
 
   // Create the dependency injection container (injector) for the libp2p host
   // This configures the host to use our key pair and QUIC transport
