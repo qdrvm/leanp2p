@@ -26,7 +26,7 @@ namespace libp2p::protocol {
     StreamProtocols getProtocolIds() const override;
 
     // handle incoming stream
-    void handle(StreamAndProtocol stream) override;
+    void handle(std::shared_ptr<Stream> stream) override;
 
     // create client session, which simplifies writing tests and interaction
     // with server.

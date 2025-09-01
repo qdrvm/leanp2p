@@ -156,12 +156,12 @@ namespace libp2p::host {
   //       std::move(protocols), std::move(cb), std::move(predicate));
   // }
 
-  CoroOutcome<StreamAndProtocol> BasicHost::newStream(
+  CoroOutcome<std::shared_ptr<Stream>> BasicHost::newStream(
       const peer::PeerInfo &peer_info, StreamProtocols protocols) {
     co_return co_await dialer_->newStream(peer_info, std::move(protocols));
   }
 
-  CoroOutcome<StreamAndProtocol> BasicHost::newStream(
+  CoroOutcome<std::shared_ptr<Stream>> BasicHost::newStream(
       std::shared_ptr<connection::CapableConnection> connection,
       StreamProtocols protocols) {
     co_return co_await dialer_->newStream(connection, std::move(protocols));

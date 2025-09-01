@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include <libp2p/connection/stream_and_protocol.hpp>
+#include <libp2p/connection/stream.hpp>
 #include <libp2p/peer/stream_protocols.hpp>
 
 namespace libp2p::protocol {
@@ -39,7 +39,7 @@ namespace libp2p::protocol {
      * protocol.
      * @param stream_res, which was received
      */
-    virtual void handle(StreamAndProtocol stream) = 0;
+    virtual void handle(std::shared_ptr<Stream> stream) = 0;
   };
 
 }  // namespace libp2p::protocol

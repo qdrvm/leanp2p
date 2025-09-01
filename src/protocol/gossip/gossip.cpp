@@ -266,16 +266,15 @@ namespace libp2p::protocol::gossip {
 
   // Handle inbound stream: set peer kind, track stream, and read RPCs in a
   // loop.
-  void Gossip::handle(StreamAndProtocol stream_and_protocol) {
-    auto &[stream, protocol] = stream_and_protocol;
+  void Gossip::handle(std::shared_ptr<Stream> stream) {
     auto peer_id = stream->remotePeerId();
     auto peer_it = peers_.find(peer_id);
     if (peer_it == peers_.end()) {
-      stream_and_protocol.stream->reset();
+      stream->reset();
       return;
     }
     auto peer = peer_it->second;
-    updatePeerKind(peer, protocol);
+    updatePeerKind(peer, stream->protocol());
     peer->streams_in_.emplace(stream);
     coroSpawn(*io_context_, [WEAK_SELF, stream, peer]() -> Coro<void> {
       Bytes encoded;
@@ -300,42 +299,44 @@ namespace libp2p::protocol::gossip {
   // connections.
   void Gossip::start() {
     host_->listenProtocol(shared_from_this());
-    auto on_peer_connected = [WEAK_SELF](
-                                 std::weak_ptr<connection::CapableConnection>
-                                     weak_connection) {
-      WEAK_LOCK(connection);
-      WEAK_LOCK(self);
-      auto peer_id = connection->remotePeer();
-      auto out = connection->isInitiator();
-      auto peer_it = self->peers_.find(peer_id);
-      if (peer_it == self->peers_.end()) {
-        peer_it =
-            self->peers_.emplace(peer_id, std::make_shared<Peer>(peer_id, out))
-                .first;
-        self->score_.connect(peer_id);
-      }
-      auto peer = peer_it->second;
-      coroSpawn(*self->io_context_, [self, connection, peer]() -> Coro<void> {
-        auto stream_and_protocol_result =
-            (co_await self->host_->newStream(connection, self->protocols_));
-        if (not stream_and_protocol_result.has_value()) {
-          // TODO: can't open out stream?
-          co_return;
-        }
-        if (auto stream = qtils::optionTake(peer->stream_out_)) {
-          (**stream).reset();
-        }
-        auto &[stream, protocol] = stream_and_protocol_result.value();
-        self->updatePeerKind(peer, protocol);
-        peer->stream_out_ = stream;
-        if (not self->topics_.empty()) {
-          auto &message = self->getBatch(peer);
-          for (auto &topic_hash : self->topics_ | std::views::keys) {
-            message.subscribe(topic_hash, true);
+    auto on_peer_connected =
+        [WEAK_SELF](
+            std::weak_ptr<connection::CapableConnection> weak_connection) {
+          WEAK_LOCK(connection);
+          WEAK_LOCK(self);
+          auto peer_id = connection->remotePeer();
+          auto out = connection->isInitiator();
+          auto peer_it = self->peers_.find(peer_id);
+          if (peer_it == self->peers_.end()) {
+            peer_it =
+                self->peers_
+                    .emplace(peer_id, std::make_shared<Peer>(peer_id, out))
+                    .first;
+            self->score_.connect(peer_id);
           }
-        }
-      });
-    };
+          auto peer = peer_it->second;
+          coroSpawn(
+              *self->io_context_, [self, connection, peer]() -> Coro<void> {
+                auto stream_result = (co_await self->host_->newStream(
+                    connection, self->protocols_));
+                if (not stream_result.has_value()) {
+                  // TODO: can't open out stream?
+                  co_return;
+                }
+                if (auto stream = qtils::optionTake(peer->stream_out_)) {
+                  (**stream).reset();
+                }
+                auto &stream = stream_result.value();
+                self->updatePeerKind(peer, stream->protocol());
+                peer->stream_out_ = stream;
+                if (not self->topics_.empty()) {
+                  auto &message = self->getBatch(peer);
+                  for (auto &topic_hash : self->topics_ | std::views::keys) {
+                    message.subscribe(topic_hash, true);
+                  }
+                }
+              });
+        };
     auto on_peer_disconnected = [WEAK_SELF](PeerId peer_id) {
       WEAK_LOCK(self);
       self->score_.disconnect(peer_id);

@@ -16,8 +16,8 @@
 
 namespace libp2p::protocol {
 
-  void Echo::handle(StreamAndProtocol stream) {
-    coroSpawn(*io_context_, doRead(stream.stream));
+  void Echo::handle(std::shared_ptr<Stream> stream) {
+    coroSpawn(*io_context_, doRead(stream));
   }
 
   Coro<void> Echo::doRead(std::shared_ptr<connection::Stream> stream) {

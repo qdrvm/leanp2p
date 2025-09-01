@@ -250,11 +250,12 @@ namespace libp2p::network {
 
         if (rproto.has_value()) {
           auto &&proto_name = rproto.value();
+          stream->protocol_ = proto_name;
           outcome::result<std::shared_ptr<protocol::BaseProtocol>> rprotocol =
               this->getProtocol(proto_name);
           if (rprotocol.has_value()) {
             const auto &protocol = rprotocol.value();
-            protocol->handle({stream, proto_name});
+            protocol->handle(stream);
             continue;
           }
           log()->warn("can not negotiate protocols, {}", rprotocol.error());

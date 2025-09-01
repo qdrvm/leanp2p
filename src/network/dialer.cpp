@@ -137,18 +137,19 @@ namespace libp2p::network {
     }
   }
 
-  CoroOutcome<StreamAndProtocol> Dialer::newStream(
+  CoroOutcome<std::shared_ptr<Stream>> Dialer::newStream(
       std::shared_ptr<connection::CapableConnection> conn,
       StreamProtocols protocols) {
     BOOST_OUTCOME_CO_TRY(auto stream, conn->newStream());
     BOOST_OUTCOME_CO_TRY(
         auto protocol,
         co_await multiselect_->selectOneOf(protocols, stream, true, true));
-    co_return StreamAndProtocol{stream, protocol};
+    stream->protocol_ = protocol;
+    co_return stream;
   }
 
-  CoroOutcome<StreamAndProtocol> Dialer::newStream(const peer::PeerInfo &p,
-                                                   StreamProtocols protocols) {
+  CoroOutcome<std::shared_ptr<Stream>> Dialer::newStream(
+      const peer::PeerInfo &p, StreamProtocols protocols) {
     SL_TRACE(log_,
              "New stream to {} for {} (peer info)",
              p.id.toBase58().substr(46),

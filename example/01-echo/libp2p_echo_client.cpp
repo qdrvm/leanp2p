@@ -36,8 +36,7 @@ int main(int argc, char **argv) {
     log->info("Connect to {}", connect_info.addresses.at(0));
     auto stream =
         (co_await host->newStream(connect_info, echo->getProtocolIds()))
-            .value()
-            .stream;
+            .value();
 
     log->info("SENDING {}", message);
     (co_await libp2p::write(stream, qtils::str2byte(message))).value();

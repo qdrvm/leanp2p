@@ -248,7 +248,7 @@ namespace libp2p::protocol::gossip {
     /** Advertise supported protocol IDs for stream negotiation. */
     StreamProtocols getProtocolIds() const override;
     /** Handle an inbound stream and start reading RPC frames. */
-    void handle(StreamAndProtocol stream) override;
+    void handle(std::shared_ptr<Stream> stream) override;
 
     /** Start event listeners, heartbeat, and score timers. */
     void start();
