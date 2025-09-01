@@ -14,8 +14,9 @@
 //     ./gossip_chat_example 1 2
 //  2) Peer B listens on index 2 and connects to 1
 //     ./gossip_chat_example 2 1
-// Type a line and press Enter to broadcast it to subscribers of topic "example".
-// Each process logs received messages; your own sent messages are not echoed back by default.
+// Type a line and press Enter to broadcast it to subscribers of topic
+// "example". Each process logs received messages; your own sent messages are
+// not echoed back by default.
 
 // Wrap stdin as an async input source that yields lines.
 struct Input {
@@ -23,7 +24,8 @@ struct Input {
   explicit Input(boost::asio::io_context &io_context)
       : fd_{io_context, STDIN_FILENO} {}
 
-  // Await a single line from stdin (without trailing newline). Returns nullopt on EOF.
+  // Await a single line from stdin (without trailing newline). Returns nullopt
+  // on EOF.
   libp2p::Coro<std::optional<std::string>> read() {
     // Read until a '\n' is seen; co_await an outcome<...>
     auto read = libp2p::coroOutcome(co_await boost::asio::async_read_until(
@@ -60,10 +62,10 @@ int main(int argc, char **argv) {
   auto index = std::stoul(argv[1]);
 
   // SamplePeer maps a small integer index to deterministic keypair and address.
-  libp2p::SamplePeer sample_peer{index};
+  auto sample_peer = libp2p::SamplePeer::makeEd25519(index);
   std::vector<libp2p::SamplePeer> connect;
   for (auto &arg : std::span{argv + 2, static_cast<size_t>(argc) - 2}) {
-    connect.emplace_back(std::stoul(arg));
+    connect.emplace_back(libp2p::SamplePeer::makeEd25519(std::stoul(arg)));
   }
 
   // Construct a host with QUIC transport and our chosen identity.
