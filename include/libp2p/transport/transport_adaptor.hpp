@@ -12,7 +12,6 @@
 
 #include <libp2p/coro/coro.hpp>
 
-#include <libp2p/basic/adaptor.hpp>
 #include <libp2p/connection/capable_connection.hpp>
 #include <libp2p/multi/multiaddress.hpp>
 #include <libp2p/peer/peer_id.hpp>
@@ -24,13 +23,13 @@ namespace libp2p::transport {
    * Allows to establish connections with other peers and react to received
    * attempts to do so; can be implemented, for example, as TCP, UDP etc
    */
-  class TransportAdaptor : public basic::Adaptor {
+  class TransportAdaptor {
    public:
     using ConnectionCallback =
         void(outcome::result<std::shared_ptr<connection::CapableConnection>>);
     using HandlerFunc = std::function<ConnectionCallback>;
 
-    ~TransportAdaptor() override = default;
+    virtual ~TransportAdaptor() = default;
 
     /**
      * Try to establish connection with a peer

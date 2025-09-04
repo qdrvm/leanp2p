@@ -62,11 +62,11 @@ namespace libp2p::host {
     };
 
     BasicHost(std::shared_ptr<peer::IdentityManager> idmgr,
-              // std::unique_ptr<network::Network> network,
-              std::unique_ptr<network::ListenerManager> listener,
-              std::unique_ptr<network::ConnectionManager> connection_manager,
-              std::unique_ptr<network::Dialer> dialer,
-              std::unique_ptr<peer::PeerRepository> repo,
+              // std::shared_ptr<network::Network> network,
+              std::shared_ptr<network::ListenerManager> listener,
+              std::shared_ptr<network::ConnectionManager> connection_manager,
+              std::shared_ptr<network::Dialer> dialer,
+              std::shared_ptr<peer::PeerRepository> repo,
               std::shared_ptr<event::Bus> bus,
               std::shared_ptr<network::TransportManager> transport_manager,
               Libp2pClientVersion libp2p_client_version);
@@ -134,9 +134,7 @@ namespace libp2p::host {
     // void setProtocolHandler(StreamProtocols protocols,
     //                                 StreamAndProtocolCb cb,
     //                                 ProtocolPredicate predicate = {});
-    outcome::result<void> listenProtocol(
-        const peer::ProtocolName &name,
-        std::shared_ptr<protocol::BaseProtocol> protocol);
+    void listenProtocol(std::shared_ptr<protocol::BaseProtocol> protocol);
 
     /**
      * @brief Initiates connection to the peer {@param peer_info}.
@@ -156,7 +154,7 @@ namespace libp2p::host {
      * @param peer_info stream will be opened to this peer
      * @param protocols "speak" using first supported protocol
      */
-    CoroOutcome<std::shared_ptr<connection::Stream>> newStream(
+    CoroOutcome<std::shared_ptr<Stream>> newStream(
         const peer::PeerInfo &peer_info, StreamProtocols protocols);
 
     /**
@@ -165,11 +163,15 @@ namespace libp2p::host {
      * @param peer stream will be opened to this peer
      * @param protocols "speak" using first supported protocol
      */
-    CoroOutcome<std::shared_ptr<connection::Stream>> newStream(
-        const PeerId &peer_id, StreamProtocols protocols) {
+    CoroOutcome<std::shared_ptr<Stream>> newStream(const PeerId &peer_id,
+                                                   StreamProtocols protocols) {
       co_return co_await newStream(PeerInfo{.id = peer_id},
                                    std::move(protocols));
     }
+
+    CoroOutcome<std::shared_ptr<Stream>> newStream(
+        std::shared_ptr<connection::CapableConnection> connection,
+        StreamProtocols protocols);
 
     /**
      * @brief Create listener on given multiaddress.
@@ -224,11 +226,11 @@ namespace libp2p::host {
 
    private:
     std::shared_ptr<peer::IdentityManager> idmgr_;
-    std::unique_ptr<network::ListenerManager> listener_;
-    std::unique_ptr<network::ConnectionManager> connection_manager_;
-    std::unique_ptr<network::Dialer> dialer_;
-    // std::unique_ptr<network::Network> network_;
-    std::unique_ptr<peer::PeerRepository> repo_;
+    std::shared_ptr<network::ListenerManager> listener_;
+    std::shared_ptr<network::ConnectionManager> connection_manager_;
+    std::shared_ptr<network::Dialer> dialer_;
+    // std::shared_ptr<network::Network> network_;
+    std::shared_ptr<peer::PeerRepository> repo_;
     std::shared_ptr<event::Bus> bus_;
     std::shared_ptr<network::TransportManager> transport_manager_;
     Libp2pClientVersion libp2p_client_version_;

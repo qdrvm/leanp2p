@@ -86,15 +86,11 @@ namespace libp2p::multi {
   }
 
   outcome::result<Multihash> Multihash::createFromHex(std::string_view hex) {
-    OUTCOME_TRY(buf, qtils::unhex(hex));
+    OUTCOME_TRY(buf, qtils::unhex<Bytes>(hex));
     return Multihash::createFromBytes(buf);
   }
 
   outcome::result<Multihash> Multihash::createFromBytes(BytesIn b) {
-    if (b.size() < kHeaderSize) {
-      return Error::INPUT_TOO_SHORT;
-    }
-
     basic::VarintPrefixReader vr;
     if (vr.consume(b) != basic::VarintPrefixReader::kReady) {
       return Error::INPUT_TOO_SHORT;
@@ -129,7 +125,7 @@ namespace libp2p::multi {
   }
 
   std::string Multihash::toHex() const {
-    return fmt::format("{:X}", data().bytes);
+    return fmt::format("{:XX}", qtils::Hex{data().bytes});
   }
 
   const Bytes &Multihash::toBuffer() const {

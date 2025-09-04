@@ -56,11 +56,16 @@ namespace libp2p::crypto {
   }
 
   void CryptoProviderImpl::initialize() {
-    constexpr size_t kSeedBytesCount = 128 * 4;  // ripple uses such number
-    auto bytes = random_provider_->randomBytes(kSeedBytesCount);
-    // seeding random crypto_provider is required prior to calling
-    // RSA_generate_key NOLINTNEXTLINE
-    RAND_seed(static_cast<const void *>(bytes.data()), bytes.size());
+    if (random_provider_ != nullptr) {
+      static auto seed_rsa = [&] {
+        constexpr size_t kSeedBytesCount = 128 * 4;  // ripple uses such number
+        auto bytes = random_provider_->randomBytes(kSeedBytesCount);
+        // seeding random crypto_provider is required prior to calling
+        // RSA_generate_key NOLINTNEXTLINE
+        RAND_seed(static_cast<const void *>(bytes.data()), bytes.size());
+        return 0;
+      }();
+    }
   }
 
   /* ###################################################################

@@ -9,6 +9,7 @@
 #include <libp2p/basic/readwriter.hpp>
 #include <libp2p/connection/capable_connection.hpp>
 #include <libp2p/multi/multiaddress.hpp>
+#include <libp2p/peer/protocol.hpp>
 
 namespace libp2p::peer {
   class PeerId;
@@ -73,7 +74,7 @@ namespace libp2p::connection {
      * Get a peer, which the stream is connected to
      * @return id of the peer
      */
-    virtual outcome::result<peer::PeerId> remotePeerId() const = 0;
+    virtual peer::PeerId remotePeerId() const = 0;
 
     /**
      * Get a local multiaddress
@@ -86,7 +87,17 @@ namespace libp2p::connection {
      * @return multiaddress or error
      */
     virtual outcome::result<multi::Multiaddress> remoteMultiaddr() const = 0;
+
+    const ProtocolName &protocol() const {
+      return protocol_.value();
+    }
+
+    std::optional<ProtocolName> protocol_;
   };
 }  // namespace libp2p::connection
+
+namespace libp2p {
+  using connection::Stream;
+}  // namespace libp2p
 
 OUTCOME_HPP_DECLARE_ERROR(libp2p::connection, Stream::Error)

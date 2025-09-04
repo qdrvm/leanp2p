@@ -15,11 +15,11 @@ namespace libp2p::host {
 
   BasicHost::BasicHost(
       std::shared_ptr<peer::IdentityManager> idmgr,
-      std::unique_ptr<network::ListenerManager> listener,
-      std::unique_ptr<network::ConnectionManager> connection_manager,
-      std::unique_ptr<network::Dialer> dialer,
-      // std::unique_ptr<network::Network> network,
-      std::unique_ptr<peer::PeerRepository> repo,
+      std::shared_ptr<network::ListenerManager> listener,
+      std::shared_ptr<network::ConnectionManager> connection_manager,
+      std::shared_ptr<network::Dialer> dialer,
+      // std::shared_ptr<network::Network> network,
+      std::shared_ptr<peer::PeerRepository> repo,
       std::shared_ptr<event::Bus> bus,
       std::shared_ptr<network::TransportManager> transport_manager,
       Libp2pClientVersion libp2p_client_version)
@@ -144,10 +144,9 @@ namespace libp2p::host {
     return Connectedness::CAN_NOT_CONNECT;
   }
 
-  outcome::result<void> BasicHost::listenProtocol(
-      const peer::ProtocolName &name,
+  void BasicHost::listenProtocol(
       std::shared_ptr<protocol::BaseProtocol> protocol) {
-    return listener_->listenProtocol(name, std::move(protocol));
+    return listener_->listenProtocol(std::move(protocol));
   }
 
   // void BasicHost::setProtocolHandler(StreamProtocols protocols,
@@ -157,9 +156,15 @@ namespace libp2p::host {
   //       std::move(protocols), std::move(cb), std::move(predicate));
   // }
 
-  CoroOutcome<std::shared_ptr<connection::Stream>> BasicHost::newStream(
+  CoroOutcome<std::shared_ptr<Stream>> BasicHost::newStream(
       const peer::PeerInfo &peer_info, StreamProtocols protocols) {
     co_return co_await dialer_->newStream(peer_info, std::move(protocols));
+  }
+
+  CoroOutcome<std::shared_ptr<Stream>> BasicHost::newStream(
+      std::shared_ptr<connection::CapableConnection> connection,
+      StreamProtocols protocols) {
+    co_return co_await dialer_->newStream(connection, std::move(protocols));
   }
 
   outcome::result<void> BasicHost::listen(const multi::Multiaddress &ma) {
@@ -185,10 +190,7 @@ namespace libp2p::host {
     return bus_->getChannel<event::network::OnNewConnectionChannel>().subscribe(
         [h{std::move(h)}](auto &&conn) {
           if (auto connection = conn.lock()) {
-            auto remote_peer_res = connection->remotePeer();
-            if (!remote_peer_res) {
-              return;
-            }
+            auto remote_peer = connection->remotePeer();
 
             auto remote_peer_addr_res = connection->remoteMultiaddr();
             if (!remote_peer_addr_res) {
@@ -196,7 +198,7 @@ namespace libp2p::host {
             }
 
             if (h != nullptr) {
-              h(peer::PeerInfo{std::move(remote_peer_res.value()),
+              h(peer::PeerInfo{std::move(remote_peer),
                                std::vector<multi::Multiaddress>{
                                    std::move(remote_peer_addr_res.value())}});
             }

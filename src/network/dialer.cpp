@@ -83,8 +83,9 @@ namespace libp2p::network {
         co_return Error::ADDRESS_FAMILY_NOT_SUPPORTED;
       }
       if (ctx.result.has_value()) {
+        auto result = std::move(ctx.result.value());
         completeDial(peer_id);
-        co_return ctx.result.value();
+        co_return result;
       }
       // this would never happen. Previous if-statement should work instead'
       completeDial(peer_id);
@@ -136,16 +137,18 @@ namespace libp2p::network {
     }
   }
 
-  CoroOutcome<std::shared_ptr<connection::Stream>> Dialer::newStream(
+  CoroOutcome<std::shared_ptr<Stream>> Dialer::newStream(
       std::shared_ptr<connection::CapableConnection> conn,
       StreamProtocols protocols) {
     BOOST_OUTCOME_CO_TRY(auto stream, conn->newStream());
     BOOST_OUTCOME_CO_TRY(
+        auto protocol,
         co_await multiselect_->selectOneOf(protocols, stream, true, true));
+    stream->protocol_ = protocol;
     co_return stream;
   }
 
-  CoroOutcome<std::shared_ptr<connection::Stream>> Dialer::newStream(
+  CoroOutcome<std::shared_ptr<Stream>> Dialer::newStream(
       const peer::PeerInfo &p, StreamProtocols protocols) {
     SL_TRACE(log_,
              "New stream to {} for {} (peer info)",

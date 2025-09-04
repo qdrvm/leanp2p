@@ -61,10 +61,10 @@ namespace libp2p::connection {
       co_return r;
     }
     auto n = lsquic_stream_write(stream_ctx_->ls_stream, in.data(), in.size());
-    if (n > 0 && lsquic_stream_flush(stream_ctx_->ls_stream) == 0) {
+    if (n > 0) {
       r = n;
+      stream_ctx_->engine->wantFlush(stream_ctx_);
     }
-    stream_ctx_->engine->wantProcess();
     co_return r;
   }
 
@@ -87,7 +87,7 @@ namespace libp2p::connection {
     return initiator_;
   }
 
-  outcome::result<PeerId> QuicStream::remotePeerId() const {
+  PeerId QuicStream::remotePeerId() const {
     return conn_->remotePeer();
   }
 

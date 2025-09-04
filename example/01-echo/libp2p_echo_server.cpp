@@ -21,7 +21,7 @@ int main(int argc, char *argv[]) {
   auto log = libp2p::log::createLogger("EchoServer");
 
   // Get sample peer config by index
-  libp2p::SamplePeer sample_peer{0};
+  auto sample_peer = libp2p::SamplePeer::makeEd25519(0);
 
   // Create the dependency injection container (injector) for the libp2p host
   // This configures the host to use our key pair and QUIC transport
@@ -39,13 +39,8 @@ int main(int argc, char *argv[]) {
 
   // Create and register the echo protocol handler
   // This will handle incoming connections that use the echo protocol
-  libp2p::protocol::Echo echo{io_context};
-  if (not host->listenProtocol(
-          echo.getProtocolId(),
-          std::make_shared<libp2p::protocol::Echo>(echo))) {
-    std::cerr << "Error listening protocol" << std::endl;
-    return 1;
-  }
+  host->listenProtocol(
+      injector.create<std::shared_ptr<libp2p::protocol::Echo>>());
 
   // Start listening on the specified multiaddress
   if (not host->listen(sample_peer.listen)) {

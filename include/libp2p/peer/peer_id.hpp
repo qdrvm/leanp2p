@@ -79,6 +79,8 @@ namespace libp2p::peer {
      */
     const multi::Multihash &toMultihash() const;
 
+    std::optional<crypto::PublicKey> publicKey() const;
+
     bool operator<(const PeerId &other) const;
     bool operator==(const PeerId &other) const;
     bool operator!=(const PeerId &other) const;

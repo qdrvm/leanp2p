@@ -22,6 +22,7 @@ libp2p_add_library(libp2p INTERFACE)
 target_link_libraries(libp2p
     INTERFACE
         p2p_basic_host
+        p2p_gossip
         p2p_peer_repository
         p2p_inmem_address_repository
         p2p_inmem_key_repository

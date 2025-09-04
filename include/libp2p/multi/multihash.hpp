@@ -98,12 +98,6 @@ namespace libp2p::multi {
 
    private:
     /**
-     * Header consists of hash type and hash size, both 1 byte or 2 hex digits
-     * long, thus 4 hex digits long in total
-     */
-    static constexpr uint8_t kHeaderSize = 4;
-
-    /**
      * Constructs a multihash from a type and a hash. Inits length_ with the
      * size of the hash. Does no checks on the validity of provided data, in
      * contrary to public fabric methods

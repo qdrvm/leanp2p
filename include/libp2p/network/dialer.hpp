@@ -50,7 +50,7 @@ namespace libp2p::network {
      * NewStream returns a new stream to given peer p.
      * If there is no connection to p, returns error.
      */
-    CoroOutcome<std::shared_ptr<connection::Stream>> newStream(
+    CoroOutcome<std::shared_ptr<Stream>> newStream(
         std::shared_ptr<connection::CapableConnection> conn,
         StreamProtocols protocols);
 
@@ -58,8 +58,8 @@ namespace libp2p::network {
      * NewStream returns a new stream to given peer p.
      * If there is no connection to p, returns error.
      */
-    CoroOutcome<std::shared_ptr<connection::Stream>> newStream(
-        const PeerInfo &peer_id, StreamProtocols protocols);
+    CoroOutcome<std::shared_ptr<Stream>> newStream(const PeerInfo &peer_id,
+                                                   StreamProtocols protocols);
 
    private:
     // A context to handle an intermediary state of the peer we are dialing to

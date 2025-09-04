@@ -84,12 +84,12 @@ class GenericProtocolHandler : public libp2p::protocol::BaseProtocol {
         user_data_(user_data),
         host_wrapper_(host_wrapper) {}
 
-  [[nodiscard]] std::string getProtocolId() const override {
-    return protocol_id_;
+  [[nodiscard]] libp2p::StreamProtocols getProtocolIds() const override {
+    return {protocol_id_};
   }
 
   // Override the handle method from BaseProtocol
-  void handle(std::shared_ptr<libp2p::connection::Stream> stream) override {
+  void handle(std::shared_ptr<libp2p::Stream> stream) override {
     assert(handler_ && "Handler cannot be null");
     // Create a stream wrapper for the C API
     auto stream_wrapper = new libp2p_stream_t();
@@ -187,7 +187,8 @@ libp2p_host_t *libp2p_host_create(libp2p_context_t *ctx,
   if (keypair_seed) {
     index = static_cast<uint32_t>(std::hash<std::string>{}(keypair_seed));
   }
-  libp2p::SamplePeer sample_peer{index % 1000};  // keep port reasonable
+  auto sample_peer =
+      libp2p::SamplePeer::makeEd25519(index % 1000);  // keep port reasonable
 
   auto injector = libp2p::injector::makeHostInjector(
       boost::di::bind<boost::asio::io_context>().to(ctx->io_context),
@@ -260,10 +261,7 @@ libp2p_error_t libp2p_host_register_protocol(libp2p_host_t *host,
 
     // Register the protocol with the host - now passing the protocol handler
     // directly
-    auto result = host->host->listenProtocol(protocol_id, protocol_handler);
-    if (!result) {
-      return LIBP2P_ERROR_PROTOCOL_ERROR;
-    }
+    host->host->listenProtocol(protocol_handler);
 
     return LIBP2P_SUCCESS;
   } catch (...) {

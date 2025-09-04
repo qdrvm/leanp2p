@@ -11,6 +11,9 @@
 namespace libp2p::protocol {
 
   struct EchoConfig {
+    // Fixes default field values with boost::di.
+    EchoConfig() = default;
+
     static constexpr size_t kInfiniteNumberOfRepeats = 0;
 
     // number of times echo server will repeat the cycle <listen-respond>

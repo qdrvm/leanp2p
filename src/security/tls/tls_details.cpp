@@ -9,12 +9,26 @@
 #include <boost/asio/ssl/verify_context.hpp>
 #include <optional>
 
+#include <libp2p/crypto/crypto_provider/crypto_provider_impl.hpp>
 #include <libp2p/crypto/ecdsa_provider/ecdsa_provider_impl.hpp>
 #include <libp2p/crypto/ed25519_provider/ed25519_provider_impl.hpp>
+#include <libp2p/crypto/secp256k1_provider/secp256k1_provider_impl.hpp>
 #include <libp2p/security/tls/tls_details.hpp>
 #include <libp2p/security/tls/tls_errors.hpp>
+#include <qtils/byte_vec.hpp>
 
 namespace libp2p::security::tls_details {
+  inline auto &cryptoProvider() {
+    static crypto::CryptoProviderImpl crypto_provider{
+        nullptr,
+        std::make_shared<crypto::ed25519::Ed25519ProviderImpl>(),
+        nullptr,
+        nullptr,
+        std::make_shared<crypto::secp256k1::Secp256k1ProviderImpl>(nullptr),
+        nullptr,
+    };
+    return crypto_provider;
+  }
 
   namespace {
 
@@ -122,65 +136,30 @@ namespace libp2p::security::tls_details {
     constexpr uint8_t kOctetStringTag = 0x04;
 
     // Size constants of the extension's format
-    constexpr size_t kMarshalledPublicKeySize = 36;
-    constexpr size_t kSignatureSize = 64;
     constexpr size_t kAsnHeaderSize = 2;
-    constexpr size_t kSigOffset = 2 * kAsnHeaderSize + kMarshalledPublicKeySize;
-    constexpr size_t kExtensionDataSize =
-        kSigOffset + kAsnHeaderSize + kSignatureSize;
-
-    using Blob = std::vector<uint8_t>;
-    using Signature = std::array<uint8_t, kSignatureSize>;
 
     // packs extension data into ASN1 sequence of 2 octet strings
-    std::array<uint8_t, kExtensionDataSize> marshalExtensionData(
-        const Blob &pub_key_bytes, const Signature &signature) {
-      if (pub_key_bytes.size() != kMarshalledPublicKeySize) {
-        throw std::runtime_error(
-            "unexpected size of peer's marshalled public key");
-      }
-
-      std::array<uint8_t, kExtensionDataSize> result{};
-
-      result[0] = kSequenceTag;
-
-      // data length
-      result[1] = kExtensionDataSize - kAsnHeaderSize;
-
-      result[2] = kOctetStringTag;
-      result[3] = kMarshalledPublicKeySize;
-      memcpy(&result[4], pub_key_bytes.data(), kMarshalledPublicKeySize);
-
-      result[kSigOffset] = kOctetStringTag;
-      result[kSigOffset + 1] = kSignatureSize;
-      memcpy(&result[kSigOffset + 2], signature.data(), kSignatureSize);
-
+    auto marshalExtensionData(BytesIn pub_key_bytes, BytesIn signature) {
+      qtils::ByteVec result;
+      result.emplace_back(kSequenceTag);
+      result.emplace_back(kAsnHeaderSize + pub_key_bytes.size() + kAsnHeaderSize
+                          + signature.size());
+      result.emplace_back(kOctetStringTag);
+      result.emplace_back(pub_key_bytes.size());
+      result.put(pub_key_bytes);
+      result.emplace_back(kOctetStringTag);
+      result.emplace_back(signature.size());
+      result.put(signature);
       return result;
     }
 
     // make signature for the extension which ties certificate and host keys
-    Signature makeExtensionSignature(
-        const crypto::ecdsa::PublicKey &cert_pub_key,
-        const crypto::PrivateKey &host_private_key) {
-      constexpr size_t prefix_size = sign_prefix.size();
-      size_t msg_len = prefix_size + cert_pub_key.size();
-
-      uint8_t buf[msg_len];  // NOLINT
-      memcpy(buf, sign_prefix.data(), sign_prefix.size());
-      memcpy(buf + sign_prefix.size(),  // NOLINT
-             cert_pub_key.data(),
-             cert_pub_key.size());
-
-      assert(host_private_key.type == crypto::Key::Type::Ed25519);
-      assert(host_private_key.data.size() == 32);
-
-      std::array<uint8_t, 32> pk_data{};
-      memcpy(pk_data.data(), host_private_key.data.data(), 32);
-
-      return crypto::ed25519::Ed25519ProviderImpl{}
-          // NOLINTNEXTLINE(cppcoreguidelines-narrowing-conversions)
-          .sign(BytesIn(buf, msg_len), pk_data)
-          .value();
+    auto makeExtensionSignature(const crypto::ecdsa::PublicKey &cert_pub_key,
+                                const crypto::PrivateKey &host_private_key) {
+      qtils::ByteVec buf;
+      buf.put(sign_prefix);
+      buf.put(cert_pub_key);
+      return cryptoProvider().sign(buf, host_private_key).value();
     }
 
     // set certificate's public key
@@ -255,8 +234,7 @@ namespace libp2p::security::tls_details {
       }
     }
 
-    void insertExtension(
-        X509 *cert, const std::array<uint8_t, kExtensionDataSize> &ext_data) {
+    void insertExtension(X509 *cert, BytesIn ext_data) {
       ASN1_OCTET_STRING *os = ASN1_OCTET_STRING_new();
       CLEANUP_PTR(os, ASN1_OCTET_STRING_free);
       // NOLINTNEXTLINE(cppcoreguidelines-narrowing-conversions)
@@ -330,32 +308,40 @@ namespace libp2p::security::tls_details {
   namespace {
 
     struct KeyAndSignature {
-      Blob pkey;
-      std::array<uint8_t, kSignatureSize> signature{};
+      qtils::ByteVec pkey;
+      qtils::ByteVec signature;
     };
 
     // extracts peer's pubkey and extension signature from ASN1 sequence
     std::optional<KeyAndSignature> unmarshalExtensionData(BytesIn data) {
-      KeyAndSignature result;
-
-      bool ok = (data.size() == kExtensionDataSize) && (data[0] == kSequenceTag)
-             && (data[1] == kExtensionDataSize - kAsnHeaderSize)
-             && (data[2] == kOctetStringTag)
-             && (data[3] == kMarshalledPublicKeySize)
-             && (data[kSigOffset] == kOctetStringTag)
-             && (data[kSigOffset + 1] == kSignatureSize);
-
-      if (!ok) {
+      auto read = [](BytesIn &input, uint8_t tag) -> std::optional<BytesIn> {
+        if (input.size() < kAsnHeaderSize or input[0] != tag
+            or input.size() < kAsnHeaderSize + input[1]) {
+          return std::nullopt;
+        }
+        auto r = input.subspan(kAsnHeaderSize, input[1]);
+        input = input.subspan(kAsnHeaderSize + input[1]);
+        return r;
+      };
+      auto r = read(data, kSequenceTag);
+      if (not r.has_value()) {
         return std::nullopt;
       }
-
-      auto slice = data.subspan(4, kMarshalledPublicKeySize);
-      result.pkey.assign(slice.begin(), slice.end());
-      memcpy(result.signature.data(),
-             &data[kSigOffset + kAsnHeaderSize],
-             kSignatureSize);
-
-      return result;
+      data = r.value();
+      r = read(data, kOctetStringTag);
+      if (not r.has_value()) {
+        return std::nullopt;
+      }
+      qtils::ByteVec public_key{r.value()};
+      r = read(data, kOctetStringTag);
+      if (not r.has_value()) {
+        return std::nullopt;
+      }
+      qtils::ByteVec signature{r.value()};
+      if (not data.empty()) {
+        return std::nullopt;
+      }
+      return KeyAndSignature{public_key, signature};
     }
 
     // extracts extension fields
@@ -387,30 +373,19 @@ namespace libp2p::security::tls_details {
     outcome::result<void> verifyExtensionSignature(
         x509_st *peer_certificate,
         const crypto::PublicKey &peer_pubkey,
-        const Signature &signature,
+        BytesIn signature,
         const peer::PeerId &peer_id) {
-      crypto::ed25519::PublicKey ed25519pkey;
-      assert(peer_pubkey.data.size() == ed25519pkey.size());
-
-      memcpy(ed25519pkey.data(), peer_pubkey.data.data(), ed25519pkey.size());
+      qtils::ByteVec buf;
+      buf.put(sign_prefix);
 
       EVP_PKEY *cert_pubkey = X509_get_pubkey(peer_certificate);
       assert(cert_pubkey);
       int len = i2d_PUBKEY(cert_pubkey, nullptr);
-      assert(len == 91);
-
-      constexpr size_t prefix_size = sign_prefix.size();
-
-      size_t msg_len = prefix_size + len;
-      uint8_t buf[msg_len];  // NOLINT
-      memcpy(buf, sign_prefix.data(), prefix_size);
-      uint8_t *b = buf + prefix_size;  // NOLINT
+      buf.resize(buf.size() + len);
+      uint8_t *b = buf.data() + buf.size() - len;  // NOLINT
       i2d_PUBKEY(cert_pubkey, &b);
 
-      auto verify_res = crypto::ed25519::Ed25519ProviderImpl{}.verify(
-          BytesIn(buf, buf + msg_len),  // NOLINT
-          signature,
-          ed25519pkey);
+      auto verify_res = cryptoProvider().verify(buf, signature, peer_pubkey);
 
       if (!verify_res) {
         log()->info("peer {} verification failed, {}",
@@ -450,7 +425,8 @@ namespace libp2p::security::tls_details {
       return TlsError::TLS_INCOMPATIBLE_CERTIFICATE_EXTENSION;
     }
 
-    if (peer_pubkey_res.value().type != crypto::Key::Type::Ed25519) {
+    if (peer_pubkey_res.value().type != crypto::Key::Type::Ed25519
+        and peer_pubkey_res.value().type != crypto::Key::Type::Secp256k1) {
       log()->info("remote peer's public key wrong type");
       return TlsError::TLS_INCOMPATIBLE_CERTIFICATE_EXTENSION;
     }

@@ -20,7 +20,13 @@ namespace libp2p {
     }
 
     void send(outcome::result<T> result) {
-      channel_.try_send(boost::system::error_code{}, std::move(result));
+      channel_.async_send(boost::system::error_code{},
+                          std::move(result),
+                          [](boost::system::error_code ec) {
+                            if (ec) {
+                              throw std::system_error{ec};
+                            }
+                          });
     }
 
     boost::asio::experimental::channel<void(boost::system::error_code,

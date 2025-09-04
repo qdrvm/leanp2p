@@ -10,6 +10,7 @@
 #include <libp2p/multi/multiaddress.hpp>
 #include <libp2p/multi/multihash.hpp>
 #include <libp2p/peer/peer_id.hpp>
+#include <qtils/literals.hpp>
 #include <qtils/unhex.hpp>
 
 #include <algorithm>
@@ -33,7 +34,7 @@ namespace libp2p::common {
   }
 
   std::vector<uint8_t> operator""_unhex(const char *c, std::size_t s) {
-    return qtils::operator""_unhex(c, s);
+    return qtils::literals::operator""_unhex(c, s);
   }
 
   libp2p::multi::Multiaddress operator""_multiaddr(const char *c,

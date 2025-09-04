@@ -46,6 +46,7 @@ namespace libp2p::transport::lsquic {
 
     lsquic_engine_settings settings{};
     lsquic_engine_init_settings(&settings, flags);
+    settings.es_versions = 1 << LSQVER_I001;
     settings.es_init_max_stream_data_bidi_remote =
         mux_config.maximum_window_size;
     settings.es_init_max_stream_data_bidi_local =
@@ -295,8 +296,32 @@ namespace libp2p::transport::lsquic {
     });
   }
 
+  void Engine::wantFlush(StreamCtx *stream_ctx) {
+    if (stream_ctx->want_flush) {
+      return;
+    }
+    stream_ctx->want_flush = true;
+    if (stream_ctx->stream.expired()) {
+      return;
+    }
+    want_flush_.emplace_back(stream_ctx->stream);
+    wantProcess();
+  }
+
   void Engine::process() {
     want_process_ = false;
+    auto want_flush = std::exchange(want_flush_, {});
+    for (auto &weak_stream : want_flush) {
+      auto stream = weak_stream.lock();
+      if (not stream) {
+        continue;
+      }
+      if (stream->stream_ctx_->ls_stream == nullptr) {
+        continue;
+      }
+      stream->stream_ctx_->want_flush = false;
+      lsquic_stream_flush(stream->stream_ctx_->ls_stream);
+    }
     lsquic_engine_process_conns(engine_);
     int us = 0;
     if (not lsquic_engine_earliest_adv_tick(engine_, &us)) {
