@@ -126,7 +126,7 @@ namespace libp2p::protocol::gossip {
       if (i >= slots) {
         break;
       }
-      result.append_range(slot);
+      result.insert(result.end(), slot.begin(), slot.end());
       ++i;
     }
     return result;
@@ -898,7 +898,9 @@ namespace libp2p::protocol::gossip {
       } else if (topic->mesh_peers_.size()
                  > config_.mesh_n_high_for_topic(topic_hash)) {
         std::vector<PeerPtr> shuffled;
-        shuffled.append_range(topic->mesh_peers_);
+        shuffled.insert(shuffled.end(),
+                        topic->mesh_peers_.begin(),
+                        topic->mesh_peers_.end());
         choose_peers_.shuffle(shuffled);
         std::ranges::sort(shuffled, [&](const PeerPtr &l, const PeerPtr &r) {
           return score_.score(r->peer_id_) < score_.score(l->peer_id_);
