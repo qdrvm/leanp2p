@@ -6,6 +6,7 @@
 
 #include <cstring>
 
+#include <libp2p/basic/encode_varint.hpp>
 #include <libp2p/crypto/sha/sha256.hpp>
 #include <libp2p/multi/content_identifier_codec.hpp>
 #include <libp2p/multi/multibase_codec/multibase_codec_impl.hpp>
@@ -55,16 +56,11 @@ namespace libp2p::multi {
 
   outcome::result<std::vector<uint8_t>> ContentIdentifierCodec::encode(
       const ContentIdentifier &cid) {
-    std::vector<uint8_t> bytes;
+    qtils::ByteVec bytes;
     if (cid.version == ContentIdentifier::Version::V1) {
-      UVarint version(static_cast<uint64_t>(cid.version));
-      bytes.insert(
-          bytes.end(), version.toBytes().begin(), version.toBytes().end());
-      UVarint type(static_cast<uint64_t>(cid.content_type));
-      bytes.insert(bytes.end(), type.toBytes().begin(), type.toBytes().end());
-      bytes.insert(bytes.end(),
-                   cid.content_address.toBuffer().begin(),
-                   cid.content_address.toBuffer().end());
+      bytes.put(EncodeVarint{static_cast<uint64_t>(cid.version)});
+      bytes.put(EncodeVarint{static_cast<uint64_t>(cid.content_type)});
+      bytes.put(cid.content_address.toBuffer());
     } else if (cid.version == ContentIdentifier::Version::V0) {
       if (cid.content_type != MulticodecType::Code::DAG_PB) {
         return EncodeError::INVALID_CONTENT_TYPE;
