@@ -15,8 +15,8 @@ namespace libp2p {
   class CoroOutcomeChannel {
    public:
     CoroOutcome<T> receive() {
-      co_return (co_await channel_.async_receive(boost::asio::use_awaitable))
-          .value();
+      auto result = co_await channel_.async_receive(boost::asio::use_awaitable);
+      co_return result.value();
     }
 
     void send(outcome::result<T> result) {
