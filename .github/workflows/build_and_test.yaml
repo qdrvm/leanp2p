@@ -19,10 +19,7 @@ on:
 env:
   USE_CACHE: ${{ github.event.inputs.use_cache || 'true' }}
   CACHE_VERSION: v02
-  CARGO_HOME: ~/.cargo
-  RUSTUP_HOME: ~/.rustup
   CACHE_PATH: |
-    ~/.cargo
     ~/.hunter
     ~/.cache/pip
     ~/.cache/vcpkg
@@ -45,12 +42,6 @@ jobs:
           submodules: true
           fetch-depth: 0
 
-#      - name: "Set up Rust"
-#        uses: dtolnay/rust-toolchain@stable
-#        with:
-#          toolchain: stable
-#          components: rustfmt, clippy
-
       - name: "Restore cache dependencies"
         id: cache-restore
         if: ${{ env.USE_CACHE == 'true' }}
@@ -70,27 +61,11 @@ jobs:
           else
             ./.ci/scripts/init.sh
           fi
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-          # Ensure Rust is available
-#          source "$HOME/.cargo/env" || true
-#          echo "CARGO_HOME=$HOME/.cargo" >> $GITHUB_ENV
-#          echo "RUSTUP_HOME=$HOME/.rustup" >> $GITHUB_ENV
 
       - name: "Init all dependencies"
         run: |
           make init_py
           make init_vcpkg
-
-#      - name: "Check Rust toolchain"
-#        run: |
-#          echo "=== Checking Rust toolchain ==="
-#          which rustc || echo "rustc not found"
-#          which cargo || echo "cargo not found"
-#          rustc --version || echo "rustc version check failed"
-#          cargo --version || echo "cargo version check failed"
-#          echo "PATH: $PATH"
-#          echo "CARGO_HOME: $CARGO_HOME"
-#          echo "RUSTUP_HOME: $RUSTUP_HOME"
 
       - name: "Configure"
         run: make configure

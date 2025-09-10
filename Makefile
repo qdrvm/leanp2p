@@ -36,8 +36,6 @@ init_vcpkg:
 
 configure:
 	@echo "=== Configuring..."
-	export PATH="$$HOME/.cargo/bin:$$PATH" && \
-	source $$HOME/.cargo/env 2>/dev/null || true && \
 	VCPKG_ROOT=$(VCPKG) cmake --preset=default -DPython3_EXECUTABLE="$(VENV)/bin/python3" -B $(BUILD) $(PROJECT)
 
 build:
