@@ -13,6 +13,8 @@ main() {
     linux_deb)
       echo "=== Detected Linux system with apt"
       apt update && apt install -y  $LINUX_PACKAGES
+      update-alternatives --install /usr/bin/gcc          gcc          /usr/bin/gcc-$GCC_VERSION 90
+      update-alternatives --install /usr/bin/g++          g++          /usr/bin/g++-$GCC_VERSION 90
       if [ -f "$HOME/.cargo/env" ]; then
         source "$HOME/.cargo/env"
       fi
