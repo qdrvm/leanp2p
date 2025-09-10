@@ -67,6 +67,7 @@ namespace libp2p::transport::detail {
         return dns;
       }
       default:
+        break;
     }
     return std::errc::protocol_not_supported;
   }
