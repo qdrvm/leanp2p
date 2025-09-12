@@ -224,6 +224,11 @@ namespace libp2p::host {
      */
     event::Bus &getBus();
 
+    /**
+     * Get list of protocols that were passed to `listenProtocol`.
+     */
+    StreamProtocols getSupportedProtocols() const;
+
    private:
     std::shared_ptr<peer::IdentityManager> idmgr_;
     std::shared_ptr<network::ListenerManager> listener_;
