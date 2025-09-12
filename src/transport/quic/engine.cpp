@@ -19,6 +19,20 @@
 #include <qtils/option_take.hpp>
 
 namespace libp2p::transport::lsquic {
+  inline boost::asio::ip::udp::endpoint endpointFrom(const sockaddr *raw) {
+    boost::asio::ip::udp::endpoint endpoint;
+    size_t size = 0;
+    if (raw->sa_family == AF_INET) {
+      size = sizeof(sockaddr_in);
+    } else if (raw->sa_family == AF_INET6) {
+      size = sizeof(sockaddr_in6);
+    } else {
+      throw std::logic_error{"endpointFrom expects IPv4 or IPv6 address"};
+    }
+    memcpy(endpoint.data(), raw, size);
+    return endpoint;
+  }
+
   Engine::Engine(std::shared_ptr<boost::asio::io_context> io_context,
                  std::shared_ptr<boost::asio::ssl::context> ssl_context,
                  const muxer::MuxedConnectionConfig &mux_config,
@@ -102,12 +116,15 @@ namespace libp2p::transport::lsquic {
         if (op and info.peer_id != op->peer) {
           return security::TlsError::TLS_UNEXPECTED_PEER_ID;
         }
+        const sockaddr *local_sockaddr = nullptr;
+        const sockaddr *peer_sockaddr = nullptr;
+        lsquic_conn_get_sockaddr(conn, &local_sockaddr, &peer_sockaddr);
         auto conn = std::make_shared<QuicConnection>(
             self->io_context_,
             conn_ctx,
             op.has_value(),
             self->local_,
-            detail::makeQuicAddr(op->remote).value(),
+            detail::makeQuicAddr(endpointFrom(peer_sockaddr)).value(),
             self->local_peer_,
             info.peer_id,
             info.public_key);

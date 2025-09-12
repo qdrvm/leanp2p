@@ -235,4 +235,7 @@ namespace libp2p::host {
     connection_manager_->closeConnectionsToPeer(peer_id);
   }
 
+  StreamProtocols BasicHost::getSupportedProtocols() const {
+    return listener_->getSupportedProtocols();
+  }
 }  // namespace libp2p::host
