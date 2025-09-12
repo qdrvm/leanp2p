@@ -29,8 +29,7 @@ namespace libp2p::transport::lsquic {
     } else {
       throw std::logic_error{"endpointFrom expects IPv4 or IPv6 address"};
     }
-    assert(raw->sa_family == AF_INET or raw->sa_family == AF_INET6);
-    memcpy(endpoint.data(), raw, raw->sa_len);
+    memcpy(endpoint.data(), raw, size);
     return endpoint;
   }
 
