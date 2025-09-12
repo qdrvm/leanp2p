@@ -21,6 +21,14 @@
 namespace libp2p::transport::lsquic {
   inline boost::asio::ip::udp::endpoint endpointFrom(const sockaddr *raw) {
     boost::asio::ip::udp::endpoint endpoint;
+    size_t size = 0;
+    if (raw->sa_family == AF_INET) {
+      size = sizeof(sockaddr_in);
+    } else if (raw->sa_family == AF_INET6) {
+      size = sizeof(sockaddr_in6);
+    } else {
+      throw std::logic_error{"endpointFrom expects IPv4 or IPv6 address"};
+    }
     assert(raw->sa_family == AF_INET or raw->sa_family == AF_INET6);
     memcpy(endpoint.data(), raw, raw->sa_len);
     return endpoint;
