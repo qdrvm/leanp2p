@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 project(leanp2p)
 
 set(CMAKE_CXX_STANDARD 23)

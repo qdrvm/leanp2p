@@ -1,0 +1,85 @@
+name: Run Tests
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      use_cache:
+        description: 'Use cache for build'
+        required: true
+        default: 'true'
+        type: 'choice'
+        options:
+          - 'true'
+          - 'false'
+
+env:
+  USE_CACHE: ${{ github.event.inputs.use_cache || 'true' }}
+  CACHE_VERSION: v02
+  CACHE_PATH: |
+    ~/.hunter
+    ~/.cache/pip
+    ~/.cache/vcpkg
+    .vcpkg
+    .venv
+    .build
+
+
+jobs:
+  build-and-test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+      fail-fast: false
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: "Restore cache dependencies"
+        id: cache-restore
+        if: ${{ env.USE_CACHE == 'true' }}
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.CACHE_PATH }}
+          key: lean-${{ runner.os }}-${{ github.job }}-${{ env.CACHE_VERSION }}-${{ github.run_id }}
+          restore-keys: |
+            lean-${{ runner.os }}-${{ github.job }}-${{ env.CACHE_VERSION }}
+            lean-${{ runner.os }}-${{ github.job }}
+            lean-${{ runner.os }}
+
+      - name: "Basic init"
+        run: |
+          if [[ $RUNNER_OS == "Linux" ]]; then
+            sudo ./.ci/scripts/init.sh
+          else
+            ./.ci/scripts/init.sh
+          fi
+
+      - name: "Init all dependencies"
+        run: |
+          make init_py
+          make init_vcpkg
+
+      - name: "Configure"
+        run: make configure
+
+      - name: "Build"
+        run: make build
+
+      - name: "Test"
+        run: make test
+
+      - name: "Always Save Cache"
+        id: cache-save
+        if: always() && ( steps.cache-restore.outputs.cache-hit != 'true' )
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.CACHE_PATH }}
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
