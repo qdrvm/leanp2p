@@ -181,6 +181,7 @@ namespace libp2p::protocol::gossip {
     std::unordered_set<StreamPtr> streams_in_;
     std::optional<Rpc> batch_;
     bool writing_ = false;
+    bool is_connecting_ = false;
     IDontWantCache<MessageId, qtils::BytesStdHash> dont_send_;
   };
 
