@@ -26,12 +26,23 @@ namespace libp2p::crypto::secp256k1 {
 
     outcome::result<Signature> sign(BytesIn message,
                                     const PrivateKey &key) const override;
+    outcome::result<SignatureCompact> signCompact(
+        const Prehashed &prehashed, const PrivateKey &key) const override;
 
     outcome::result<bool> verify(BytesIn message,
                                  const Signature &signature,
                                  const PublicKey &key) const override;
+    outcome::result<bool> verifyCompact(const Prehashed &prehashed,
+                                        const SignatureCompact &signature,
+                                        const PublicKey &key) const override;
 
    private:
+    outcome::result<secp256k1_ecdsa_signature> signRaw(
+        const Prehashed &prehashed, const PrivateKey &key) const;
+    outcome::result<bool> verifyRaw(const Prehashed &prehashed,
+                                    const secp256k1_ecdsa_signature &ffi_sig,
+                                    const PublicKey &key) const;
+
     std::shared_ptr<random::CSPRNG> random_;
     std::unique_ptr<secp256k1_context, void (*)(secp256k1_context *)> ctx_;
   };
