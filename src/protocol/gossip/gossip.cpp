@@ -415,7 +415,7 @@ namespace libp2p::protocol::gossip {
   void Gossip::publish(Topic &topic, BytesIn data) {
     auto message = std::make_shared<Message>(host_->getId(),
                                              qtils::ByteVec(data),
-                                             publish_config_.last_seq_no,
+                                             std::nullopt,
                                              topic.topic_hash_);
     ++publish_config_.last_seq_no;
 
