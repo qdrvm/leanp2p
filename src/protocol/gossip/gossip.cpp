@@ -413,7 +413,7 @@ namespace libp2p::protocol::gossip {
 
   // Local publish path: create message (signed or anonymous), dedupe, and broadcast to peers.
   void Gossip::publish(Topic &topic, BytesIn data) {
-    auto message = std::make_shared<Message>(host_->getId(),
+    auto message = std::make_shared<Message>(std::nullopt,
                                              qtils::ByteVec(data),
                                              std::nullopt,
                                              topic.topic_hash_);
