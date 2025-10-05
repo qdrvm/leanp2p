@@ -171,7 +171,7 @@ namespace libp2p::network {
   void ListenerManager::listenProtocol(
       std::shared_ptr<protocol::BaseProtocol> protocol) {
     for (auto &id : protocol->getProtocolIds()) {
-      protocols_.emplace(id, std::move(protocol));
+      protocols_.emplace(id, protocol);
     }
   }
 
