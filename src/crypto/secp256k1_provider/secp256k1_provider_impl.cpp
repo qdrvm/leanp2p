@@ -49,17 +49,7 @@ namespace libp2p::crypto::secp256k1 {
 
   outcome::result<Signature> Secp256k1ProviderImpl::sign(
       BytesIn message, const PrivateKey &key) const {
-    OUTCOME_TRY(digest, sha256(message));
-    secp256k1_ecdsa_signature ffi_sig;
-    if (secp256k1_ecdsa_sign(ctx_.get(),
-                             &ffi_sig,
-                             digest.data(),
-                             key.data(),
-                             secp256k1_nonce_function_rfc6979,
-                             nullptr)
-        == 0) {
-      return CryptoProviderError::SIGNATURE_GENERATION_FAILED;
-    }
+    OUTCOME_TRY(ffi_sig, signRaw(message, key));
     uint8_t empty = 0;
     size_t size = 0;
     secp256k1_ecdsa_signature_serialize_der(
@@ -74,17 +64,62 @@ namespace libp2p::crypto::secp256k1 {
     return signature;
   }
 
+  outcome::result<SignatureCompact> Secp256k1ProviderImpl::signCompact(
+      BytesIn message, const PrivateKey &key) const {
+    OUTCOME_TRY(ffi_sig, signRaw(message, key));
+    SignatureCompact signature;
+    secp256k1_ecdsa_signature_serialize_compact(
+        ctx_.get(), signature.data(), &ffi_sig);
+    return signature;
+  }
+
   outcome::result<bool> Secp256k1ProviderImpl::verify(
       BytesIn message, const Signature &signature, const PublicKey &key) const {
-    OUTCOME_TRY(digest, sha256(message));
-    secp256k1_pubkey ffi_pub;
-    if (secp256k1_ec_pubkey_parse(ctx_.get(), &ffi_pub, key.data(), key.size())
-        == 0) {
-      return CryptoProviderError::SIGNATURE_VERIFICATION_FAILED;
-    }
     secp256k1_ecdsa_signature ffi_sig;
     if (secp256k1_ecdsa_signature_parse_der(
             ctx_.get(), &ffi_sig, signature.data(), signature.size())
+        == 0) {
+      return CryptoProviderError::SIGNATURE_VERIFICATION_FAILED;
+    }
+    return verifyRaw(message, ffi_sig, key);
+  }
+
+  outcome::result<bool> Secp256k1ProviderImpl::verifyCompact(
+      BytesIn message,
+      const SignatureCompact &signature,
+      const PublicKey &key) const {
+    secp256k1_ecdsa_signature ffi_sig;
+    if (secp256k1_ecdsa_signature_parse_compact(
+            ctx_.get(), &ffi_sig, signature.data())
+        == 0) {
+      return CryptoProviderError::SIGNATURE_VERIFICATION_FAILED;
+    }
+    return verifyRaw(message, ffi_sig, key);
+  }
+
+  outcome::result<secp256k1_ecdsa_signature> Secp256k1ProviderImpl::signRaw(
+      BytesIn message, const PrivateKey &key) const {
+    OUTCOME_TRY(digest, sha256(message));
+    secp256k1_ecdsa_signature ffi_sig;
+    if (secp256k1_ecdsa_sign(ctx_.get(),
+                             &ffi_sig,
+                             digest.data(),
+                             key.data(),
+                             secp256k1_nonce_function_rfc6979,
+                             nullptr)
+        == 0) {
+      return CryptoProviderError::SIGNATURE_GENERATION_FAILED;
+    }
+    return ffi_sig;
+  }
+
+  outcome::result<bool> Secp256k1ProviderImpl::verifyRaw(
+      BytesIn message,
+      const secp256k1_ecdsa_signature &ffi_sig,
+      const PublicKey &key) const {
+    OUTCOME_TRY(digest, sha256(message));
+    secp256k1_pubkey ffi_pub;
+    if (secp256k1_ec_pubkey_parse(ctx_.get(), &ffi_pub, key.data(), key.size())
         == 0) {
       return CryptoProviderError::SIGNATURE_VERIFICATION_FAILED;
     }
