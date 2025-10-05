@@ -255,6 +255,11 @@ namespace libp2p::network {
               this->getProtocol(proto_name);
           if (rprotocol.has_value()) {
             const auto &protocol = rprotocol.value();
+            if (!protocol) {
+              log()->warn("can not negotiate protocols, protocol is null");
+              stream->reset();
+              continue;
+            }
             protocol->handle(stream);
             continue;
           }
