@@ -13,9 +13,15 @@
 
 namespace libp2p {
   /**
+   * Yields execution to allow other coroutines to run.
+   *
+   * This function posts a continuation to the current executor, effectively
+   * yielding control and allowing the event loop to process other pending work.
    * Thread switch operation always completes, so it can't leak `shared_ptr`.
+   *
+   * @return A coroutine that completes after yielding execution
    */
-  Coro<void> coroYield() {
+  inline Coro<void> coroYield() {
     co_await boost::asio::post(co_await boost::asio::this_coro::executor,
                                boost::asio::use_awaitable);
   }
