@@ -411,21 +411,24 @@ namespace libp2p::protocol::gossip {
     return subscribe(qtils::ByteVec(qtils::str2byte(topic_hash)));
   }
 
-  // Local publish path: create signed message, dedupe, and broadcast to peers.
+  // Local publish path: create message (signed or anonymous), dedupe, and broadcast to peers.
   void Gossip::publish(Topic &topic, BytesIn data) {
-    assert(config_.message_authenticity == MessageAuthenticity::Signed);
     auto message = std::make_shared<Message>(host_->getId(),
                                              qtils::ByteVec(data),
                                              publish_config_.last_seq_no,
                                              topic.topic_hash_);
     ++publish_config_.last_seq_no;
 
-    gossipsub::pb::Message pb_signable;
-    toProtobuf(pb_signable, *message);
-    auto signable = getSignable(pb_signable);
-    message->signature =
-        crypto_provider_->sign(signable, id_mgr_->getKeyPair().privateKey)
-            .value();
+    // Only sign if in Signed mode
+    if (config_.message_authenticity == MessageAuthenticity::Signed) {
+      gossipsub::pb::Message pb_signable;
+      toProtobuf(pb_signable, *message);
+      auto signable = getSignable(pb_signable);
+      message->signature =
+          crypto_provider_->sign(signable, id_mgr_->getKeyPair().privateKey)
+              .value();
+    }
+    // In Anonymous mode, signature remains empty (std::nullopt)
 
     auto message_id = config_.message_id_fn(*message);
     if (duplicate_cache_.contains(message_id)) {
@@ -479,43 +482,63 @@ namespace libp2p::protocol::gossip {
       }
     }
 
-    // Handle PUBLISH: verify signature, dedupe, deliver locally, and relay.
+    // Handle PUBLISH: verify signature (if strict mode), dedupe, deliver locally, and relay.
     for (auto &pb_publish : pb_message.publish()) {
       auto message = std::make_shared<Message>();
 
-      assert(config_.validation_mode == ValidationMode::Strict);
-      auto from_result = PeerId::fromBytes(qtils::str2byte(pb_publish.from()));
-      if (not from_result) {
-        continue;
+      // Parse message fields
+      if (pb_publish.has_from() && !pb_publish.from().empty()) {
+        auto from_result = PeerId::fromBytes(qtils::str2byte(pb_publish.from()));
+        if (not from_result) {
+          continue;
+        }
+        message->from.emplace(from_result.value());
       }
-      auto &from = from_result.value();
-      message->from.emplace(from);
 
       message->data = qtils::ByteVec(qtils::str2byte(pb_publish.data()));
 
-      if (pb_publish.seqno().size() != sizeof(Seqno)) {
-        continue;
+      if (pb_publish.has_seqno() && !pb_publish.seqno().empty()) {
+        if (pb_publish.seqno().size() != sizeof(Seqno)) {
+          continue;
+        }
+        message->seqno = boost::endian::load_big_u64(
+            qtils::str2byte(pb_publish.seqno().data()));
       }
-      message->seqno = boost::endian::load_big_u64(
-          qtils::str2byte(pb_publish.seqno().data()));
 
       message->topic = qtils::ByteVec(qtils::str2byte(pb_publish.topic()));
 
-      gossipsub::pb::Message pb_signable = pb_publish;
-      auto signable = getSignable(pb_signable);
+      // Handle signature validation based on mode
+      if (config_.validation_mode == ValidationMode::Strict) {
+        // Strict mode: require signature and validate it
+        if (!pb_publish.has_signature() || pb_publish.signature().empty()) {
+          continue;
+        }
+        if (!message->from.has_value()) {
+          continue;
+        }
 
-      message->signature =
-          qtils::ByteVec(qtils::str2byte(pb_publish.signature()));
+        gossipsub::pb::Message pb_signable = pb_publish;
+        auto signable = getSignable(pb_signable);
 
-      auto public_key = from.publicKey();
-      if (not public_key.has_value()) {
-        continue;
-      }
+        message->signature =
+            qtils::ByteVec(qtils::str2byte(pb_publish.signature()));
 
-      auto verify =
-          crypto_provider_->verify(signable, *message->signature, *public_key);
-      if (not verify.has_value() or not verify.value()) {
-        continue;
+        auto public_key = message->from->publicKey();
+        if (not public_key.has_value()) {
+          continue;
+        }
+
+        auto verify =
+            crypto_provider_->verify(signable, *message->signature, *public_key);
+        if (not verify.has_value() or not verify.value()) {
+          continue;
+        }
+      } else if (config_.validation_mode == ValidationMode::Anonymous) {
+        // Anonymous mode: signature must be empty
+        if (pb_publish.has_signature() && !pb_publish.signature().empty()) {
+          continue;
+        }
+        // No signature validation needed
       }
 
       auto topic_it = topics_.find(message->topic);

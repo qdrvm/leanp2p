@@ -35,12 +35,12 @@ namespace libp2p::protocol::gossip {
 
   enum class ValidationMode {
     Strict,
-    // TODO...
+    Anonymous,
   };
 
   enum class MessageAuthenticity {
     Signed,
-    // TODO...
+    Anonymous,
   };
 
   struct Message {

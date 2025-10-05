@@ -24,6 +24,7 @@
 #include <libp2p/peer/peer_repository.hpp>
 #include <libp2p/peer/protocol_repository/inmem_protocol_repository.hpp>
 #include <libp2p/protocol_muxer/multiselect.hpp>
+#include <libp2p/protocol/gossip/config.hpp>
 #include "libp2p/crypto/key_validator/key_validator_impl.hpp"
 
 namespace libp2p::injector {
@@ -48,6 +49,14 @@ namespace libp2p::injector {
   inline auto useKeyPair(crypto::KeyPair key_pair) {
     return boost::di::bind<crypto::KeyPair>().to(
         std::move(key_pair))[boost::di::override];
+  }
+
+  /**
+   * @brief Configure gossipsub with custom Config (e.g., for anonymous messages)
+   */
+  inline auto useGossipConfig(protocol::gossip::Config config) {
+    return boost::di::bind<protocol::gossip::Config>().to(
+        std::move(config))[boost::di::override];
   }
 
   /**
