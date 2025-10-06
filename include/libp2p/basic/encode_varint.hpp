@@ -38,6 +38,10 @@ namespace libp2p {
       } while (value != 0);
     }
 
+    size_t size() const {
+      return size_;
+    }
+
     operator BytesIn() const {
       return BytesIn{buffer_}.first(size_);
     }
