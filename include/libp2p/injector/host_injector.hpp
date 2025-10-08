@@ -14,6 +14,7 @@
 #include <libp2p/crypto/ed25519_provider/ed25519_provider_impl.hpp>
 #include <libp2p/crypto/hmac_provider/hmac_provider_impl.hpp>
 #include <libp2p/crypto/key_marshaller.hpp>
+#include <libp2p/crypto/key_validator/key_validator_impl.hpp>
 #include <libp2p/crypto/random_generator/boost_generator.hpp>
 #include <libp2p/crypto/rsa_provider/rsa_provider_impl.hpp>
 #include <libp2p/crypto/secp256k1_provider/secp256k1_provider_impl.hpp>
@@ -23,9 +24,8 @@
 #include <libp2p/peer/key_repository/inmem_key_repository.hpp>
 #include <libp2p/peer/peer_repository.hpp>
 #include <libp2p/peer/protocol_repository/inmem_protocol_repository.hpp>
-#include <libp2p/protocol_muxer/multiselect.hpp>
 #include <libp2p/protocol/gossip/config.hpp>
-#include "libp2p/crypto/key_validator/key_validator_impl.hpp"
+#include <libp2p/protocol_muxer/multiselect.hpp>
 
 namespace libp2p::injector {
 
@@ -52,7 +52,8 @@ namespace libp2p::injector {
   }
 
   /**
-   * @brief Configure gossipsub with custom Config (e.g., for anonymous messages)
+   * @brief Configure gossipsub with custom Config (e.g., for anonymous
+   * messages)
    */
   inline auto useGossipConfig(protocol::gossip::Config config) {
     return boost::di::bind<protocol::gossip::Config>().to(
@@ -106,6 +107,7 @@ namespace libp2p::injector {
         di::bind<crypto::secp256k1::Secp256k1Provider>.to<crypto::secp256k1::Secp256k1ProviderImpl>(),
         di::bind<crypto::hmac::HmacProvider>.to<crypto::hmac::HmacProviderImpl>(),
         di::bind<libp2p::crypto::random::CSPRNG>.to<libp2p::crypto::random::BoostRandomGenerator>(),
+        di::bind<libp2p::crypto::random::RandomGenerator>.to<libp2p::crypto::random::BoostRandomGenerator>(),
         di::bind<muxer::MuxedConnectionConfig>.to(muxer::MuxedConnectionConfig{}),
         // User-defined overrides...
         std::forward<decltype(args)>(args)...
