@@ -315,27 +315,32 @@ namespace libp2p::protocol::gossip {
             self->score_.connect(peer_id);
           }
           auto peer = peer_it->second;
-          coroSpawn(
-              *self->io_context_, [self, connection, peer]() -> Coro<void> {
-                auto stream_result = (co_await self->host_->newStream(
-                    connection, self->protocols_));
-                if (not stream_result.has_value()) {
-                  // TODO: can't open out stream?
-                  co_return;
-                }
-                if (auto stream = qtils::optionTake(peer->stream_out_)) {
-                  (**stream).reset();
-                }
-                auto &stream = stream_result.value();
-                self->updatePeerKind(peer, stream->protocol());
-                peer->stream_out_ = stream;
-                if (not self->topics_.empty()) {
-                  auto &message = self->getBatch(peer);
-                  for (auto &topic_hash : self->topics_ | std::views::keys) {
-                    message.subscribe(topic_hash, true);
+          // Avoid creating multiple streams concurrently
+          if (not peer->stream_out_.has_value() and not peer->is_connecting_) {
+            peer->is_connecting_ = true;
+            coroSpawn(
+                *self->io_context_, [self, connection, peer]() -> Coro<void> {
+                  auto stream_result = (co_await self->host_->newStream(
+                      connection, self->protocols_));
+                  peer->is_connecting_ = false;
+                  if (not stream_result.has_value()) {
+                    // TODO: can't open out stream?
+                    co_return;
                   }
-                }
-              });
+                  if (auto stream = qtils::optionTake(peer->stream_out_)) {
+                    (**stream).reset();
+                  }
+                  auto &stream = stream_result.value();
+                  self->updatePeerKind(peer, stream->protocol());
+                  peer->stream_out_ = stream;
+                  if (not self->topics_.empty()) {
+                    auto &message = self->getBatch(peer);
+                    for (auto &topic_hash : self->topics_ | std::views::keys) {
+                      message.subscribe(topic_hash, true);
+                    }
+                  }
+                });
+          }
         };
     auto on_peer_disconnected = [WEAK_SELF](PeerId peer_id) {
       WEAK_LOCK(self);
@@ -743,49 +748,12 @@ namespace libp2p::protocol::gossip {
     if (peer->writing_) {
       return;
     }
+    if (not peer->stream_out_.has_value()) {
+      return;
+    }
     if (not peer->batch_.has_value()) {
       return;
     }
-    
-    // If no outbound stream exists, proactively create one
-    if (not peer->stream_out_.has_value()) {
-      // Avoid creating multiple streams concurrently
-      if (peer->is_connecting_) {
-        return;
-      }
-      peer->is_connecting_ = true;
-      
-      // Spawn coroutine to create new stream and send queued messages
-      coroSpawn(*io_context_, [WEAK_SELF, peer]() -> Coro<void> {
-        auto self = weak_self.lock();
-        if (not self) {
-          peer->is_connecting_ = false;
-          co_return;
-        }
-        
-        // Try to create a new stream to this peer
-        auto stream_result = co_await self->host_->newStream(
-            peer->peer_id_, self->protocols_);
-        
-        peer->is_connecting_ = false;
-        
-        if (not stream_result.has_value()) {
-          // Failed to create stream, message will be lost
-          // TODO: could implement retry logic or queue management here
-          co_return;
-        }
-        
-        // Successfully created stream
-        auto stream = stream_result.value();
-        self->updatePeerKind(peer, stream->protocol());
-        peer->stream_out_ = stream;
-        
-        // Now that we have a stream, trigger checkWrite again to process queued messages
-        self->checkWrite(peer);
-      });
-      return;
-    }
-    
     peer->writing_ = true;
     coroSpawn(*io_context_, [WEAK_SELF, peer]() -> Coro<void> {
       co_await coroYield();
