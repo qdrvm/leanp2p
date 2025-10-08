@@ -26,8 +26,7 @@ namespace libp2p::transport {
         local_peer_{id_mgr.getId()},
         key_codec_{std::move(key_codec)},
         resolver_{*io_context_},
-        client4_{makeClient(boost::asio::ip::udp::v4())},
-        client6_{makeClient(boost::asio::ip::udp::v6())} {}
+        client4_{makeClient(boost::asio::ip::udp::v4())} {}
 
   CoroOutcome<std::shared_ptr<connection::CapableConnection>>
   QuicTransport::dial(const PeerId &peer, Multiaddress address) {
