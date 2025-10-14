@@ -25,9 +25,7 @@ namespace libp2p::transport {
         mux_config_{mux_config},
         local_peer_{id_mgr.getId()},
         key_codec_{std::move(key_codec)},
-        resolver_{*io_context_},
-        client4_{makeClient(boost::asio::ip::udp::v4())},
-        client6_{makeClient(boost::asio::ip::udp::v6())} {}
+        resolver_{*io_context_} {}
 
   CoroOutcome<std::shared_ptr<connection::CapableConnection>>
   QuicTransport::dial(const PeerId &peer, Multiaddress address) {
@@ -50,6 +48,9 @@ namespace libp2p::transport {
     auto remote = results.begin()->endpoint();
     auto v4 = remote.protocol() == boost::asio::ip::udp::v4();
     auto &client = v4 ? client4_ : client6_;
+    if (client == nullptr) {
+      BOOST_OUTCOME_CO_TRY(client, makeClient(remote.protocol()));
+    }
     auto conn_result = co_await client->connect(remote, peer);
     if (!conn_result) {
       co_return conn_result.as_failure();
@@ -67,17 +68,20 @@ namespace libp2p::transport {
     return detail::asQuic(ma).has_value();
   }
 
-  std::shared_ptr<lsquic::Engine> QuicTransport::makeClient(
+  outcome::result<std::shared_ptr<lsquic::Engine>> QuicTransport::makeClient(
       boost::asio::ip::udp protocol) const {
+    boost::asio::ip::udp::socket socket{*io_context_};
+    boost::system::error_code ec;
+    socket.open(protocol, ec);
+    if (ec) {
+      return ec;
+    }
     return std::make_shared<lsquic::Engine>(io_context_,
                                             ssl_context_,
                                             mux_config_,
                                             local_peer_,
                                             key_codec_,
-                                            boost::asio::ip::udp::socket{
-                                                *io_context_,
-                                                protocol,
-                                            },
+                                            std::move(socket),
                                             true);
   }
 }  // namespace libp2p::transport
