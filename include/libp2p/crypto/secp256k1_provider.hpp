@@ -38,6 +38,8 @@ namespace libp2p::crypto::secp256k1 {
      */
     virtual outcome::result<Signature> sign(BytesIn message,
                                             const PrivateKey &key) const = 0;
+    virtual outcome::result<SignatureCompact> signCompact(
+        const Prehashed &prehashed, const PrivateKey &key) const = 0;
 
     /**
      * @brief Verify signature for a message
@@ -49,6 +51,10 @@ namespace libp2p::crypto::secp256k1 {
     virtual outcome::result<bool> verify(BytesIn message,
                                          const Signature &signature,
                                          const PublicKey &key) const = 0;
+    virtual outcome::result<bool> verifyCompact(
+        const Prehashed &prehashed,
+        const SignatureCompact &signature,
+        const PublicKey &key) const = 0;
 
     virtual ~Secp256k1Provider() = default;
   };

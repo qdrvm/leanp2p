@@ -13,12 +13,16 @@ namespace libp2p::crypto::secp256k1 {
 
   static const size_t kPrivateKeyLength = 32;
   static const size_t kPublicKeyLength = 33;
+  static const size_t kSignatureCompactLength = 64;
+  static const size_t kPrehashedLength = 32;
   /**
    * @brief Common types
    */
   using PrivateKey = std::array<uint8_t, kPrivateKeyLength>;
   using PublicKey = std::array<uint8_t, kPublicKeyLength>;
   using Signature = std::vector<uint8_t>;
+  using SignatureCompact = std::array<uint8_t, kSignatureCompactLength>;
+  using Prehashed = std::array<uint8_t, kPrehashedLength>;
 
   /**
    * @struct Key pair
