@@ -183,6 +183,11 @@ namespace libp2p::protocol::gossip {
 
   // Receive next message payload from a subscribed topic (for local consumer).
   CoroOutcome<Bytes> Topic::receive() {
+    BOOST_OUTCOME_CO_TRY(auto message, co_await receiveMessage());
+    co_return message.data;
+  }
+
+  CoroOutcome<Message> Topic::receiveMessage() {
     co_return co_await receive_channel_.receive();
   }
 
@@ -554,6 +559,8 @@ namespace libp2p::protocol::gossip {
 
       message->topic = qtils::ByteVec(qtils::str2byte(pb_publish.topic()));
 
+      message->received_from = peer->peer_id_;
+
       auto topic_it = topics_.find(message->topic);
       if (topic_it == topics_.end()) {
         continue;
@@ -565,7 +572,7 @@ namespace libp2p::protocol::gossip {
         continue;
       }
       score_.validateMessage(peer->peer_id_, message_id, message->topic);
-      topic->receive_channel_.send(message->data);
+      topic->receive_channel_.send(*message);
       score_.deliver_message(peer->peer_id_, message_id, message->topic);
       broadcast(*topic, peer->peer_id_, message_id, message);
     }

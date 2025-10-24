@@ -49,6 +49,8 @@ namespace libp2p::protocol::gossip {
     std::optional<Seqno> seqno;
     TopicHash topic;
     std::optional<Bytes> signature;
+
+    std::optional<PeerId> received_from;
   };
 
   using MessageIdFn = std::function<MessageId(const Message &)>;
