@@ -758,6 +758,74 @@ namespace libp2p::protocol::gossip {
     return peer->batch_.value();
   }
 
+  inline std::vector<qtils::ByteVec> splitBatch(const Rpc &message) {
+    std::vector<qtils::ByteVec> pb_messages;
+
+    if (not message.subscriptions.empty() or not message.graft.empty()
+        or not message.prune.empty() or not message.ihave.empty()
+        or not message.iwant.empty() or not message.idontwant.empty()) {
+      gossipsub::pb::RPC pb_message;
+
+      for (auto &[topic_hash, subscribe] : message.subscriptions) {
+        auto &pb_subscription = *pb_message.add_subscriptions();
+        *pb_subscription.mutable_topic_id() = qtils::byte2str(topic_hash);
+        pb_subscription.set_subscribe(subscribe);
+      }
+
+      for (auto &topic_hash : message.graft) {
+        auto &pb_graft = *pb_message.mutable_control()->add_graft();
+        *pb_graft.mutable_topic_id() = qtils::byte2str(topic_hash);
+      }
+
+      for (auto &[topic_hash, backoff] : message.prune) {
+        auto &pb_prune = *pb_message.mutable_control()->add_prune();
+        *pb_prune.mutable_topic_id() = qtils::byte2str(topic_hash);
+        if (backoff.has_value()) {
+          pb_prune.set_backoff(backoff->count());
+        }
+      }
+
+      for (auto &[topic_hash, messages] : message.ihave) {
+        auto &pb_ihave = *pb_message.mutable_control()->add_ihave();
+        *pb_ihave.mutable_topic_id() = qtils::byte2str(topic_hash);
+        auto &pb_messages = *pb_ihave.mutable_message_ids();
+        for (auto &message : messages) {
+          *pb_messages.Add() = qtils::byte2str(message);
+        }
+      }
+
+      if (not message.iwant.empty()) {
+        auto &pb_messages =
+            *pb_message.mutable_control()->add_iwant()->mutable_message_ids();
+        for (auto &message : message.iwant) {
+          *pb_messages.Add() = qtils::byte2str(message);
+        }
+      }
+
+      if (not message.idontwant.empty()) {
+        auto &pb_messages = *pb_message.mutable_control()
+                                 ->add_idontwant()
+                                 ->mutable_message_ids();
+        for (auto &message : message.idontwant) {
+          *pb_messages.Add() = qtils::byte2str(message);
+        }
+      }
+
+      pb_messages.emplace_back(protobufEncode(pb_message));
+    }
+
+    for (auto &publish : message.publish) {
+      gossipsub::pb::RPC pb_message;
+
+      auto &pb_publish = *pb_message.add_publish();
+      toProtobuf(pb_publish, *publish);
+
+      pb_messages.emplace_back(protobufEncode(pb_message));
+    }
+
+    return pb_messages;
+  }
+
   // Writer coroutine: build RPC from batch and send via varint-length framing.
   void Gossip::checkWrite(const PeerPtr &peer) {
     if (peer->writing_) {
@@ -770,79 +838,23 @@ namespace libp2p::protocol::gossip {
       return;
     }
     peer->writing_ = true;
-    coroSpawn(*io_context_, [WEAK_SELF, peer]() -> Coro<void> {
+    coroSpawn(*io_context_, [peer]() -> Coro<void> {
       co_await coroYield();
       assert(peer->writing_);
       assert(peer->stream_out_.has_value());
       while (auto message = qtils::optionTake(peer->batch_)) {
-        auto self = weak_self.lock();
-        if (not self) {
-          break;
-        }
+        auto pb_messages = splitBatch(*message);
 
-        gossipsub::pb::RPC pb_message;
-        assert(not message->subscriptions.empty()
-               or not message->publish.empty() or not message->graft.empty()
-               or not message->prune.empty() or not message->ihave.empty()
-               or not message->iwant.empty() or not message->idontwant.empty());
-
-        for (auto &[topic_hash, subscribe] : message->subscriptions) {
-          auto &pb_subscription = *pb_message.add_subscriptions();
-          *pb_subscription.mutable_topic_id() = qtils::byte2str(topic_hash);
-          pb_subscription.set_subscribe(subscribe);
-        }
-
-        for (auto &publish : message->publish) {
-          auto &pb_publish = *pb_message.add_publish();
-          toProtobuf(pb_publish, *publish);
-        }
-
-        for (auto &topic_hash : message->graft) {
-          auto &pb_graft = *pb_message.mutable_control()->add_graft();
-          *pb_graft.mutable_topic_id() = qtils::byte2str(topic_hash);
-        }
-
-        for (auto &[topic_hash, backoff] : message->prune) {
-          auto &pb_prune = *pb_message.mutable_control()->add_prune();
-          *pb_prune.mutable_topic_id() = qtils::byte2str(topic_hash);
-          if (backoff.has_value()) {
-            pb_prune.set_backoff(backoff->count());
+        for (auto &encoded : pb_messages) {
+          assert(not encoded.empty());
+          auto r =
+              co_await writeVarintMessage(peer->stream_out_.value(), encoded);
+          if (not r.has_value()) {
+            peer->stream_out_.reset();
+            break;
           }
         }
-
-        for (auto &[topic_hash, messages] : message->ihave) {
-          auto &pb_ihave = *pb_message.mutable_control()->add_ihave();
-          *pb_ihave.mutable_topic_id() = qtils::byte2str(topic_hash);
-          auto &pb_messages = *pb_ihave.mutable_message_ids();
-          for (auto &message : messages) {
-            *pb_messages.Add() = qtils::byte2str(message);
-          }
-        }
-
-        if (not message->iwant.empty()) {
-          auto &pb_messages =
-              *pb_message.mutable_control()->add_iwant()->mutable_message_ids();
-          for (auto &message : message->iwant) {
-            *pb_messages.Add() = qtils::byte2str(message);
-          }
-        }
-
-        if (not message->idontwant.empty()) {
-          auto &pb_messages = *pb_message.mutable_control()
-                                   ->add_idontwant()
-                                   ->mutable_message_ids();
-          for (auto &message : message->idontwant) {
-            *pb_messages.Add() = qtils::byte2str(message);
-          }
-        }
-
-        auto encoded = protobufEncode(pb_message);
-        assert(not encoded.empty());
-        self.reset();
-        auto r =
-            co_await writeVarintMessage(peer->stream_out_.value(), encoded);
-        if (not r.has_value()) {
-          peer->stream_out_.reset();
+        if (not peer->stream_out_.has_value()) {
           break;
         }
       }
