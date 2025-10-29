@@ -145,6 +145,8 @@ namespace libp2p::protocol::gossip {
     ValidationMode validation_mode = ValidationMode::Strict;
     MessageAuthenticity message_authenticity = MessageAuthenticity::Signed;
 
+    std::function<void(const PeerId &, const Message &)> on_peer_publish;
+
     /// Protocol versions
     std::unordered_map<ProtocolName, PeerKind> protocol_versions{
         {kProtocolFloodsub, PeerKind::Floodsub},
