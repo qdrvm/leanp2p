@@ -169,6 +169,9 @@ namespace libp2p::transport::lsquic {
           if (auto reading = qtils::optionTake(stream_ctx->reading)) {
             reading.value()();
           }
+          if (auto writing = qtils::optionTake(stream_ctx->writing)) {
+            writing.value()();
+          }
           if (auto stream = stream_ctx->stream.lock()) {
             stream->onClose();
           }
@@ -182,6 +185,15 @@ namespace libp2p::transport::lsquic {
           auto stream_ctx = reinterpret_cast<StreamCtx *>(_stream_ctx);
           if (auto reading = qtils::optionTake(stream_ctx->reading)) {
             reading.value()();
+          }
+        };
+    stream_if.on_write =
+        +[](lsquic_stream_t *stream, lsquic_stream_ctx_t *_stream_ctx) {
+          lsquic_stream_wantwrite(stream, 0);
+          // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+          auto stream_ctx = reinterpret_cast<StreamCtx *>(_stream_ctx);
+          if (auto writing = qtils::optionTake(stream_ctx->writing)) {
+            writing.value()();
           }
         };
 

@@ -60,10 +60,25 @@ namespace libp2p::connection {
     if (not stream_ctx_) {
       co_return r;
     }
-    auto n = lsquic_stream_write(stream_ctx_->ls_stream, in.data(), in.size());
-    if (n > 0) {
-      r = n;
+    while (true) {
+      // Missing from `lsquic_stream_write` documentation comment.
+      // Return value 0 means buffer is full.
+      // Call `lsquic_stream_wantwrite` and wait for `stream_if.on_write`
+      // callback, before calling `lsquic_stream_write` again.
+      auto n =
+          lsquic_stream_write(stream_ctx_->ls_stream, in.data(), in.size());
       stream_ctx_->engine->wantFlush(stream_ctx_);
+      if (n == 0) {
+        co_await coroHandler<void>([&](CoroHandler<void> &&handler) {
+          stream_ctx_->writing.emplace(std::move(handler));
+          lsquic_stream_wantwrite(stream_ctx_->ls_stream, 1);
+        });
+        continue;
+      }
+      if (n > 0) {
+        r = n;
+      }
+      break;
     }
     co_return r;
   }
