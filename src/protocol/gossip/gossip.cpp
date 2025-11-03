@@ -838,35 +838,28 @@ namespace libp2p::protocol::gossip {
       return;
     }
     peer->writing_ = true;
-    coroSpawn(*io_context_,
-              [on_peer_publish{config_.on_peer_publish}, peer]() -> Coro<void> {
-                co_await coroYield();
-                assert(peer->writing_);
-                assert(peer->stream_out_.has_value());
-                while (auto message = qtils::optionTake(peer->batch_)) {
-                  if (on_peer_publish) {
-                    for (auto &publish : message->publish) {
-                      on_peer_publish(peer->peer_id_, *publish);
-                    }
-                  }
+    coroSpawn(*io_context_, [peer]() -> Coro<void> {
+      co_await coroYield();
+      assert(peer->writing_);
+      assert(peer->stream_out_.has_value());
+      while (auto message = qtils::optionTake(peer->batch_)) {
+        auto pb_messages = splitBatch(*message);
 
-                  auto pb_messages = splitBatch(*message);
-
-                  for (auto &encoded : pb_messages) {
-                    assert(not encoded.empty());
-                    auto r = co_await writeVarintMessage(
-                        peer->stream_out_.value(), encoded);
-                    if (not r.has_value()) {
-                      peer->stream_out_.reset();
-                      break;
-                    }
-                  }
-                  if (not peer->stream_out_.has_value()) {
-                    break;
-                  }
-                }
-                peer->writing_ = false;
-              });
+        for (auto &encoded : pb_messages) {
+          assert(not encoded.empty());
+          auto r =
+              co_await writeVarintMessage(peer->stream_out_.value(), encoded);
+          if (not r.has_value()) {
+            peer->stream_out_.reset();
+            break;
+          }
+        }
+        if (not peer->stream_out_.has_value()) {
+          break;
+        }
+      }
+      peer->writing_ = false;
+    });
   }
 
   // Record negotiated protocol features for the peer.
