@@ -146,13 +146,14 @@ namespace libp2p::protocol::gossip {
    public:
     /** Receive next message published to this topic (awaitable). */
     CoroOutcome<Bytes> receive();
+    CoroOutcome<Message> receiveMessage();
     /** Publish a payload to this topic (signed locally). */
     void publish(BytesIn message);
     /** Count outbound peers currently in the mesh. */
     size_t meshOutCount();
     std::weak_ptr<Gossip> weak_gossip_;
     TopicHash topic_hash_;
-    CoroOutcomeChannel<Bytes> receive_channel_;
+    CoroOutcomeChannel<Message> receive_channel_;
     History history_;
     TopicBackoff backoff_;
     std::unordered_set<PeerPtr> peers_;       // all peers subscribed

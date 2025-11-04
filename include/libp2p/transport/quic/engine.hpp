@@ -83,6 +83,7 @@ namespace libp2p::transport::lsquic {
      * Stream read operation arguments.
      */
     std::optional<CoroHandler<void>> reading;
+    std::optional<CoroHandler<void>> writing;
     bool want_flush = false;
   };
 

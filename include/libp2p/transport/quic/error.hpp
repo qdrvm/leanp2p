@@ -14,6 +14,7 @@ namespace libp2p {
     CONN_CLOSED,
     STREAM_CLOSED,
     STREAM_READ_IN_PROGRESS,
+    STREAM_WRITE_IN_PROGRESS,
     TOO_MANY_STREAMS,
     CANT_CREATE_CONNECTION,
     CANT_OPEN_STREAM,
@@ -29,6 +30,8 @@ namespace libp2p {
         return "STREAM_CLOSED";
       case E::STREAM_READ_IN_PROGRESS:
         return "STREAM_READ_IN_PROGRESS";
+      case E::STREAM_WRITE_IN_PROGRESS:
+        return "STREAM_WRITE_IN_PROGRESS";
       case E::TOO_MANY_STREAMS:
         return "TOO_MANY_STREAMS";
       case E::CANT_CREATE_CONNECTION:
