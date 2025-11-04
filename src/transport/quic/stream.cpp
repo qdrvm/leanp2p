@@ -60,6 +60,9 @@ namespace libp2p::connection {
     if (not stream_ctx_) {
       co_return r;
     }
+    if (stream_ctx_->writing) {
+      co_return QuicError::STREAM_WRITE_IN_PROGRESS;
+    }
     while (true) {
       // Missing from `lsquic_stream_write` documentation comment.
       // Return value 0 means buffer is full.
