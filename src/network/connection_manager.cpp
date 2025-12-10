@@ -124,6 +124,8 @@ namespace libp2p::network {
         // ignore errors
         (void)conn->close();
       }
+      bus_->getChannel<event::network::OnConnectionClosedChannel>().publish(
+          conn);
     }
 
     closing_connections_to_peer_.reset();
@@ -152,6 +154,9 @@ namespace libp2p::network {
     [[maybe_unused]] auto erased = it->second.erase(conn);
     if (erased == 0) {
       log()->error("inconsistency in onConnectionClosed, connection not found");
+    } else {
+      bus_->getChannel<event::network::OnConnectionClosedChannel>().publish(
+          conn);
     }
 
     if (it->second.empty()) {

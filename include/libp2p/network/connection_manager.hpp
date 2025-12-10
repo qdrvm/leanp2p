@@ -20,6 +20,10 @@ namespace libp2p::event::network {
       channel_decl<struct OnNewConnection,
                    std::weak_ptr<connection::CapableConnection>>;
 
+  using OnConnectionClosedChannel =
+      channel_decl<struct OnConnectionClosed,
+                   std::shared_ptr<connection::CapableConnection>>;
+
   /// fired when all connections to peer closed
   using OnPeerDisconnectedChannel =
       channel_decl<struct PeerDisconnected, const libp2p::peer::PeerId &>;
