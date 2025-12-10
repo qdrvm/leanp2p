@@ -229,6 +229,8 @@ namespace libp2p::host {
      */
     StreamProtocols getSupportedProtocols() const;
 
+    size_t getConnectedPeerCount() const;
+
    private:
     std::shared_ptr<peer::IdentityManager> idmgr_;
     std::shared_ptr<network::ListenerManager> listener_;
