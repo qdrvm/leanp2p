@@ -1,6 +1,12 @@
 {
   "name": "leanp2p",
   "version": "0.1.0",
+  "features": {
+    "redis": {
+      "description": "Enable Redis support (needed for test-plans)",
+      "dependencies": ["hiredis"]
+    }
+  },
   "dependencies": [
     "boost-asio",
     "boost-beast",
