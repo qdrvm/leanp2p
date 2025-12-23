@@ -5,6 +5,7 @@
  */
 
 #include <generated/protocol/gossip/gossip.pb.h>
+#include <algorithm>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/endian/conversion.hpp>
@@ -729,8 +730,34 @@ namespace libp2p::protocol::gossip {
           add_peer(peer);
         }
       }
-      for (auto &peer : topic.mesh_peers_) {
-        add_peer(peer);
+      if (config_.soon) {
+        auto mesh_n = config_.mesh_n_for_topic(topic.topic_hash_);
+        if (topic.mesh_peers_.size() <= mesh_n) {
+          for (auto &peer : topic.mesh_peers_) {
+            add_peer(peer);
+          }
+        } else {
+          std::vector<PeerPtr> sorted_mesh_peers(topic.mesh_peers_.begin(),
+                                                 topic.mesh_peers_.end());
+          auto &rtt_repo = host_->getPeerRepository().getRttRepository();
+          std::sort(sorted_mesh_peers.begin(), sorted_mesh_peers.end(),
+                    [&](const PeerPtr &a, const PeerPtr &b) {
+                      auto rtt_a = rtt_repo.getRtt(a->peer_id_);
+                      auto rtt_b = rtt_repo.getRtt(b->peer_id_);
+                      auto val_a =
+                          rtt_a.value_or(std::chrono::microseconds::max());
+                      auto val_b =
+                          rtt_b.value_or(std::chrono::microseconds::max());
+                      return val_a < val_b;
+                    });
+          for (size_t i = 0; i < mesh_n; ++i) {
+            add_peer(sorted_mesh_peers[i]);
+          }
+        }
+      } else {
+        for (auto &peer : topic.mesh_peers_) {
+          add_peer(peer);
+        }
       }
       if (publish) {
         if (auto more =

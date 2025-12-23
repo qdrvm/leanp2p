@@ -192,6 +192,8 @@ namespace libp2p::protocol::gossip {
     size_t opportunistic_graft_ticks = 60;
     size_t opportunistic_graft_peers = 2;
 
+    bool soon = false;
+
     ScoreConfig score;
   };
 }  // namespace libp2p::protocol::gossip
