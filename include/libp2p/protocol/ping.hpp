@@ -15,7 +15,7 @@ namespace boost::asio {
 }  // namespace boost::asio
 
 namespace libp2p::connection {
-  class CapableConnection;
+  struct CapableConnection;
 }  // namespace libp2p::connection
 
 namespace libp2p::crypto::random {
@@ -68,8 +68,23 @@ namespace libp2p::protocol {
 
     void start();
 
+    /**
+     * Performs a single ping on the given connection.
+     * Opens a new stream for the ping.
+     * @param conn Connection to ping.
+     * @param timeout Timeout for the ping operation.
+     * @return RTT of the ping.
+     */
+    CoroOutcome<std::chrono::microseconds> ping(
+        std::shared_ptr<connection::CapableConnection> conn,
+        std::chrono::milliseconds timeout);
+
    private:
-    Coro<void> ping(std::shared_ptr<connection::CapableConnection> connection);
+    Coro<void> pingLoop(std::shared_ptr<connection::CapableConnection> connection);
+
+    CoroOutcome<std::chrono::microseconds> ping(
+        std::shared_ptr<connection::Stream> stream,
+        std::chrono::milliseconds timeout);
 
     std::shared_ptr<boost::asio::io_context> io_context_;
     std::shared_ptr<host::BasicHost> host_;
