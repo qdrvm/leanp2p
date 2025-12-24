@@ -43,3 +43,7 @@ dist
 ninja_build_release
 _builds
 _logs
+.venv
+.vcpkg
+.build
+_codeql_detected_source_root
