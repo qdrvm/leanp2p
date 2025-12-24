@@ -13,6 +13,7 @@
 #include <libp2p/peer/peer_id.hpp>
 #include <libp2p/peer/peer_info.hpp>
 #include <libp2p/peer/protocol_repository.hpp>
+#include <libp2p/peer/rtt_repository.hpp>
 
 namespace libp2p::peer {
   /**
@@ -23,7 +24,8 @@ namespace libp2p::peer {
    public:
     PeerRepository(std::shared_ptr<AddressRepository> addrRepo,
                    std::shared_ptr<KeyRepository> keyRepo,
-                   std::shared_ptr<ProtocolRepository> protocolRepo);
+                   std::shared_ptr<ProtocolRepository> protocolRepo,
+                   std::shared_ptr<RttRepository> rttRepo);
     /**
      * @brief Getter for an address repository.
      * @return associated instance of an address repository.
@@ -41,6 +43,12 @@ namespace libp2p::peer {
      * @return associated instance of a protocol repository.
      */
     ProtocolRepository &getProtocolRepository();
+
+    /**
+     * @brief Getter for an RTT repository.
+     * @return associated instance of an RTT repository.
+     */
+    RttRepository &getRttRepository();
 
     /**
      * @brief Returns set of peer ids known by this peer repository.
@@ -61,5 +69,6 @@ namespace libp2p::peer {
     std::shared_ptr<AddressRepository> addr_;
     std::shared_ptr<KeyRepository> key_;
     std::shared_ptr<ProtocolRepository> proto_;
+    std::shared_ptr<RttRepository> rtt_;
   };
 }  // namespace libp2p::peer
