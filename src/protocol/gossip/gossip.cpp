@@ -730,9 +730,9 @@ namespace libp2p::protocol::gossip {
           add_peer(peer);
         }
       }
-      if (config_.soon) {
-        auto mesh_n = config_.mesh_n_for_topic(topic.topic_hash_);
-        if (topic.mesh_peers_.size() <= mesh_n) {
+      if (config_.soon_delta >= 0) {
+        if (topic.mesh_peers_.size()
+            <= static_cast<size_t>(config_.soon_delta)) {
           for (auto &peer : topic.mesh_peers_) {
             add_peer(peer);
           }
@@ -750,7 +750,7 @@ namespace libp2p::protocol::gossip {
                           rtt_b.value_or(std::chrono::microseconds::max());
                       return val_a < val_b;
                     });
-          for (size_t i = 0; i < mesh_n; ++i) {
+          for (int i = 0; i < config_.soon_delta; ++i) {
             add_peer(sorted_mesh_peers[i]);
           }
         }
