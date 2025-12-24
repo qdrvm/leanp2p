@@ -71,6 +71,8 @@ namespace libp2p::protocol {
     /**
      * Performs a single ping on the given connection.
      * Opens a new stream for the ping.
+     * On successful ping, automatically updates the RTT repository with the
+     * measured round-trip time.
      * @param conn Connection to ping.
      * @param timeout Timeout for the ping operation.
      * @return RTT of the ping.
