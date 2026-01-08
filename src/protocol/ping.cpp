@@ -58,7 +58,7 @@ namespace libp2p::protocol {
           WEAK_LOCK(connection);
           WEAK_LOCK(self);
           coroSpawn(*self->io_context_, [self, connection]() -> Coro<void> {
-            co_await self->ping(connection);
+            co_await self->pingLoop(connection);
           });
         };
     on_peer_connected_sub_ =
@@ -67,7 +67,7 @@ namespace libp2p::protocol {
             .subscribe(on_peer_connected);
   }
 
-  Coro<void> Ping::ping(
+  Coro<void> Ping::pingLoop(
       std::shared_ptr<connection::CapableConnection> connection) {
     co_await coroYield();
     boost::asio::steady_timer timer{*io_context_};
@@ -81,31 +81,60 @@ namespace libp2p::protocol {
         }
         stream = stream_result.value();
       }
-      PingMessage message;
-      random_->fillRandomly(message);
-      timer.expires_after(config_.timeout);
-      timer.async_wait([stream](boost::system::error_code ec) {
-        if (not ec) {
-          stream->reset();
-        }
-      });
-      auto r = co_await write(stream, message);
-      if (r.has_value()) {
-        PingMessage reply;
-        r = co_await read(stream, reply);
-        if (r.has_value()) {
-          if (reply != message) {
-            r = Error::INVALID_RESPONSE;
-          }
-        }
-      }
+      auto r = co_await ping(
+          stream,
+          std::chrono::duration_cast<std::chrono::milliseconds>(config_.timeout));
       if (not r.has_value()) {
         stream->reset();
         stream.reset();
       }
-      timer.cancel();
       timer.expires_after(config_.interval);
       co_await timer.async_wait(boost::asio::use_awaitable);
     }
+  }
+
+  CoroOutcome<std::chrono::microseconds> Ping::ping(
+      std::shared_ptr<connection::CapableConnection> conn,
+      std::chrono::milliseconds timeout) {
+    auto stream_result = co_await host_->newStream(conn, getProtocolIds());
+    if (not stream_result.has_value()) {
+      co_return stream_result.error();
+    }
+    auto stream = stream_result.value();
+    auto res = co_await ping(stream, timeout);
+    stream->close();
+    co_return res;
+  }
+
+  CoroOutcome<std::chrono::microseconds> Ping::ping(
+      std::shared_ptr<connection::Stream> stream,
+      std::chrono::milliseconds timeout) {
+    PingMessage message;
+    random_->fillRandomly(message);
+    boost::asio::steady_timer timer{*io_context_};
+    timer.expires_after(timeout);
+    timer.async_wait([stream](boost::system::error_code ec) {
+      if (not ec) {
+        stream->reset();
+      }
+    });
+    auto start = std::chrono::steady_clock::now();
+    auto r = co_await write(stream, message);
+    if (r.has_value()) {
+      PingMessage reply;
+      r = co_await read(stream, reply);
+      if (r.has_value()) {
+        if (reply != message) {
+          r = Error::INVALID_RESPONSE;
+        }
+      }
+    }
+    auto end = std::chrono::steady_clock::now();
+    timer.cancel();
+    if (r.has_value()) {
+      co_return std::chrono::duration_cast<std::chrono::microseconds>(end -
+                                                                      start);
+    }
+    co_return r.error();
   }
 }  // namespace libp2p::protocol
