@@ -150,14 +150,17 @@ namespace libp2p::protocol::gossip {
     /** Publish a payload to this topic (signed locally). */
     void publish(BytesIn message);
     /** Count outbound peers currently in the mesh. */
-    size_t meshOutCount();
+    size_t meshOutCount() const;
+
     std::weak_ptr<Gossip> weak_gossip_;
     TopicHash topic_hash_;
+    bool publish_only_ = false;
     CoroOutcomeChannel<Message> receive_channel_;
     History history_;
     TopicBackoff backoff_;
     std::unordered_set<PeerPtr> peers_;       // all peers subscribed
     std::unordered_set<PeerPtr> mesh_peers_;  // peers in mesh
+    time_cache::Time last_publish_;
   };
 
   /**
@@ -260,6 +263,12 @@ namespace libp2p::protocol::gossip {
     /** Subscribe locally to a topic by string name. */
     std::shared_ptr<Topic> subscribe(std::string_view topic_hash);
 
+    /**
+     * Publish message to topic.
+     * Creates publish only topic if `subscribe` was not called before.
+     */
+    void publish(const TopicHash &topic_hash, BytesIn data);
+
     /** Publish a payload to a topic (signed, deduped, broadcast). */
     void publish(Topic &topic, BytesIn data);
 
@@ -316,6 +325,9 @@ namespace libp2p::protocol::gossip {
     /** Process IHAVE set and enqueue IWANTs under caps/thresholds. */
     bool handle_ihave(const PeerPtr &peer,
                       const gossipsub::pb::RPC &pb_message);
+
+    std::shared_ptr<Topic> getOrCreateTopic(const TopicHash &topic_hash,
+                                            bool publish_only);
 
     // Dependencies and state
     std::shared_ptr<boost::asio::io_context> io_context_;
