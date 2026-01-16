@@ -160,7 +160,7 @@ namespace libp2p::protocol::gossip {
     TopicBackoff backoff_;
     std::unordered_set<PeerPtr> peers_;       // all peers subscribed
     std::unordered_set<PeerPtr> mesh_peers_;  // peers in mesh
-    time_cache::Time last_publish_;
+    time_cache::Time last_publish_{};
   };
 
   /**

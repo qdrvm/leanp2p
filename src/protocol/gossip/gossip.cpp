@@ -414,6 +414,7 @@ namespace libp2p::protocol::gossip {
       }
     }
     auto &topic = topic_it->second;
+    // upgrade publish only topic to subscribed topic
     if (not publish_only and topic->publish_only_) {
       topic->publish_only_ = false;
       for (auto &peer : topic->peers_) {
