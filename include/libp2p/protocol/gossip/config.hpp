@@ -168,6 +168,8 @@ namespace libp2p::protocol::gossip {
     Backoff graft_flood_threshold{10};
 
     std::chrono::seconds heartbeat_interval{1};
+    /// Time to live for fanout peers (default is 60 seconds).
+    std::chrono::seconds fanout_ttl{60};
 
     size_t retain_scores = 4;
 

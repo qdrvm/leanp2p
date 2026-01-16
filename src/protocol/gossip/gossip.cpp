@@ -24,6 +24,7 @@
 #include <qtils/bytes.hpp>
 #include <qtils/bytestr.hpp>
 #include <qtils/option_take.hpp>
+#include <qtils/retain_if.hpp>
 
 namespace libp2p::protocol::gossip {
   // Signing context prefix for message signing/verification (libp2p-pubsub:).
@@ -199,7 +200,7 @@ namespace libp2p::protocol::gossip {
   }
 
   // Count outbound connections present in the mesh for the topic.
-  size_t Topic::meshOutCount() {
+  size_t Topic::meshOutCount() const {
     size_t count = 0;
     for (auto &peer : mesh_peers_) {
       if (peer->out_) {
@@ -340,7 +341,10 @@ namespace libp2p::protocol::gossip {
                   peer->stream_out_ = stream;
                   if (not self->topics_.empty()) {
                     auto &message = self->getBatch(peer);
-                    for (auto &topic_hash : self->topics_ | std::views::keys) {
+                    for (auto &[topic_hash, topic] : self->topics_) {
+                      if (topic->publish_only_) {
+                        continue;
+                      }
                       message.subscribe(topic_hash, true);
                     }
                   }
@@ -387,11 +391,17 @@ namespace libp2p::protocol::gossip {
   // Subscribe locally to a topic: create Topic, announce to peers, and seed
   // mesh.
   std::shared_ptr<Topic> Gossip::subscribe(TopicHash topic_hash) {
+    return getOrCreateTopic(topic_hash, false);
+  }
+
+  std::shared_ptr<Topic> Gossip::getOrCreateTopic(const TopicHash &topic_hash,
+                                                  bool publish_only) {
     auto topic_it = topics_.find(topic_hash);
     if (topic_it == topics_.end()) {
       auto topic = std::make_shared<Topic>(Topic{
           weak_from_this(),
           topic_hash,
+          publish_only,
           {*io_context_},
           {config_.history_length},
           {config_},
@@ -401,24 +411,48 @@ namespace libp2p::protocol::gossip {
         if (peer->topics_.contains(topic_hash)) {
           topic->peers_.emplace(peer);
         }
-        getBatch(peer).subscribe(topic_hash, true);
-      }
-      for (auto &peer : choose_peers_.choose(
-               topic->peers_,
-               [&](const PeerPtr &peer) {
-                 return not topic->mesh_peers_.contains(peer)
-                    and not is_backoff_with_slack(*topic, peer)
-                    and not score_.below(peer->peer_id_, config_.score.zero);
-               },
-               config_.mesh_n_for_topic(topic_hash))) {
-        graft(*topic, peer);
       }
     }
-    return topic_it->second;
+    auto &topic = topic_it->second;
+    // upgrade publish only topic to subscribed topic
+    if (not publish_only and topic->publish_only_) {
+      topic->publish_only_ = false;
+      for (auto &peer : topic->peers_) {
+        getBatch(peer).subscribe(topic_hash, true);
+      }
+      auto peers = std::exchange(topic->mesh_peers_, {});
+      auto predicate = [&](const PeerPtr &peer) {
+        return not topic->mesh_peers_.contains(peer)
+           and not is_backoff_with_slack(*topic, peer)
+           and not score_.below(peer->peer_id_, config_.score.zero);
+      };
+      auto mesh_n = config_.mesh_n_for_topic(topic_hash);
+      for (auto &peer : peers) {
+        if (topic->mesh_peers_.size() >= mesh_n) {
+          break;
+        }
+        if (not predicate(peer)) {
+          continue;
+        }
+        graft(*topic, peer);
+      }
+      if (auto more = saturating_sub(mesh_n, topic->mesh_peers_.size())) {
+        for (auto &peer :
+             choose_peers_.choose(topic->peers_, predicate, more)) {
+          graft(*topic, peer);
+        }
+      }
+    }
+    return topic;
   }
 
   std::shared_ptr<Topic> Gossip::subscribe(std::string_view topic_hash) {
     return subscribe(qtils::ByteVec(qtils::str2byte(topic_hash)));
+  }
+
+  void Gossip::publish(const TopicHash &topic_hash, BytesIn data) {
+    auto topic = getOrCreateTopic(topic_hash, true);
+    publish(*topic, data);
   }
 
   // Local publish path: create message (signed or anonymous), dedupe, and
@@ -483,7 +517,7 @@ namespace libp2p::protocol::gossip {
           auto &topic = topic_it->second;
           topic->peers_.emplace(peer);
 
-          if (peer->isGossipsub()
+          if (not topic->publish_only_ and peer->isGossipsub()
               and topic->mesh_peers_.size()
                       < config_.mesh_n_low_for_topic(topic_hash)
               and not topic->mesh_peers_.contains(peer)
@@ -592,6 +626,9 @@ namespace libp2p::protocol::gossip {
       auto &topic = topic_it->second;
       topic->peers_.emplace(peer);
 
+      if (topic->publish_only_) {
+        continue;
+      }
       if (topic->mesh_peers_.contains(peer)) {
         continue;
       }
@@ -739,12 +776,18 @@ namespace libp2p::protocol::gossip {
           for (auto &peer : choose_peers_.choose(
                    topic.peers_,
                    [&](const PeerPtr &peer) {
-                     return not topic.mesh_peers_.contains(peer);
+                     return not topic.mesh_peers_.contains(peer)
+                        and not score_.below(peer->peer_id_,
+                                             config_.score.publish_threshold);
                    },
                    more)) {
             add_peer(peer);
+            if (topic.publish_only_) {
+              topic.mesh_peers_.emplace(peer);
+            }
           }
         }
+        topic.last_publish_ = time_cache::Clock::now();
       }
     }
   }
@@ -923,7 +966,33 @@ namespace libp2p::protocol::gossip {
 
     apply_iwant_penalties();
 
+    qtils::retainIf(topics_, [&](const decltype(topics_)::value_type &p) {
+      auto &topic = p.second;
+      return not topic->publish_only_
+          or time_cache::Clock::now() - topic->last_publish_
+                 < config_.fanout_ttl;
+    });
     for (auto &[topic_hash, topic] : topics_) {
+      auto mesh_n = config_.mesh_n_for_topic(topic_hash);
+      if (topic->publish_only_) {
+        qtils::retainIf(topic->mesh_peers_, [&](const PeerPtr &peer) {
+          return not score_.below(peer->peer_id_,
+                                  config_.score.publish_threshold);
+        });
+        if (auto more = saturating_sub(mesh_n, topic->mesh_peers_.size())) {
+          for (auto &peer : choose_peers_.choose(
+                   topic->peers_,
+                   [&](const PeerPtr &peer) {
+                     return not topic->mesh_peers_.contains(peer)
+                        and not score_.below(peer->peer_id_,
+                                             config_.score.publish_threshold);
+                   },
+                   more)) {
+            topic->mesh_peers_.emplace(peer);
+          }
+        }
+        continue;
+      }
       for (auto peer_it = topic->mesh_peers_.begin();
            peer_it != topic->mesh_peers_.end();) {
         auto &peer = *peer_it;
@@ -935,7 +1004,6 @@ namespace libp2p::protocol::gossip {
         }
       }
 
-      auto mesh_n = config_.mesh_n_for_topic(topic_hash);
       auto mesh_outbound_min = config_.mesh_outbound_min_for_topic(topic_hash);
       if (topic->mesh_peers_.size()
           < config_.mesh_n_low_for_topic(topic_hash)) {
