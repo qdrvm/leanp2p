@@ -613,6 +613,7 @@ namespace libp2p::protocol::gossip {
 
     // Handle GRAFT: accept (add to mesh) or PRUNE with backoff.
     for (auto &pb_graft : pb_message.control().graft()) {
+      std::cerr << "CORE_P2P: RX GRAFT topic=" << pb_graft.topic_id() << " from=" << peer->peer_id_.toBase58() << std::endl;
       if (not peer->isGossipsub()) {
         return false;
       }
@@ -661,6 +662,7 @@ namespace libp2p::protocol::gossip {
 
     // Handle PRUNE: remove from mesh and update backoff (v1.1+ honors backoff).
     for (auto &pb_prune : pb_message.control().prune()) {
+      std::cerr << "CORE_P2P: RX PRUNE topic=" << pb_prune.topic_id() << " from=" << peer->peer_id_.toBase58() << std::endl;
       if (not peer->isGossipsub()) {
         return false;
       }
@@ -673,6 +675,9 @@ namespace libp2p::protocol::gossip {
     }
 
     // Handle IHAVE: select a capped subset of unknown IDs and enqueue IWANTs.
+    if (pb_message.control().ihave().size() > 0) {
+       std::cerr << "CORE_P2P: RX IHAVE count=" << pb_message.control().ihave().size() << " from=" << peer->peer_id_.toBase58() << std::endl;
+    }
     if (not handle_ihave(peer, pb_message)) {
       return false;
     }
