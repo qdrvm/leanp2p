@@ -5,6 +5,7 @@
  */
 
 #include <generated/protocol/gossip/gossip.pb.h>
+#include <iostream>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/endian/conversion.hpp>
@@ -542,6 +543,9 @@ namespace libp2p::protocol::gossip {
     // Handle PUBLISH: verify signature (if strict mode), dedupe, deliver
     // locally, and relay.
     for (auto &pb_publish : pb_message.publish()) {
+      std::cerr << "CORE_P2P: RX PUBLISH topic=" << pb_publish.topic()
+                << " size=" << pb_publish.data().size()
+                << " from=" << peer->peer_id_.toBase58() << std::endl;
       auto message = std::make_shared<Message>();
 
       switch (config_.validation_mode) {
