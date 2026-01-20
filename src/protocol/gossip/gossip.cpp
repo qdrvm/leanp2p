@@ -275,6 +275,8 @@ namespace libp2p::protocol::gossip {
   // loop.
   void Gossip::handle(std::shared_ptr<Stream> stream) {
     auto peer_id = stream->remotePeerId();
+    std::cerr << "CORE_P2P: HANDLE called for peer=" << peer_id.toBase58()
+              << " protocol=" << stream->protocol() << std::endl;
     auto peer_it = peers_.find(peer_id);
     if (peer_it == peers_.end()) {
       // Peer not found - this can happen if the inbound stream arrives before
@@ -284,25 +286,38 @@ namespace libp2p::protocol::gossip {
                 << peer_id.toBase58() << std::endl;
       peer_it = peers_.emplace(peer_id, std::make_shared<Peer>(peer_id, false)).first;
       score_.connect(peer_id);
+    } else {
+      std::cerr << "CORE_P2P: HANDLE peer exists for " << peer_id.toBase58() << std::endl;
     }
     auto peer = peer_it->second;
     updatePeerKind(peer, stream->protocol());
     peer->streams_in_.emplace(stream);
-    coroSpawn(*io_context_, [WEAK_SELF, stream, peer]() -> Coro<void> {
+    std::cerr << "CORE_P2P: HANDLE starting read loop for peer=" << peer_id.toBase58() << std::endl;
+    coroSpawn(*io_context_, [WEAK_SELF, stream, peer, peer_id]() -> Coro<void> {
       Bytes encoded;
+      int msg_count = 0;
       while (true) {
         auto r = co_await readVarintMessage(stream, encoded);
         if (not r.has_value()) {
+          std::cerr << "CORE_P2P: HANDLE read failed for peer=" << peer_id.toBase58()
+                    << " after " << msg_count << " messages, error=" << r.error().message() << std::endl;
           break;
         }
+        msg_count++;
+        std::cerr << "CORE_P2P: HANDLE read message #" << msg_count << " from peer=" << peer_id.toBase58()
+                  << " size=" << encoded.size() << std::endl;
         auto self = weak_self.lock();
         if (not self) {
+          std::cerr << "CORE_P2P: HANDLE self expired for peer=" << peer_id.toBase58() << std::endl;
           break;
         }
         if (not self->onMessage(peer, encoded)) {
+          std::cerr << "CORE_P2P: HANDLE onMessage returned false for peer=" << peer_id.toBase58() << std::endl;
           break;
         }
       }
+      std::cerr << "CORE_P2P: HANDLE read loop ended for peer=" << peer_id.toBase58()
+                << " total_messages=" << msg_count << std::endl;
       peer->streams_in_.erase(stream);
     });
   }
@@ -318,8 +333,11 @@ namespace libp2p::protocol::gossip {
           WEAK_LOCK(self);
           auto peer_id = connection->remotePeer();
           auto out = connection->isInitiator();
+          std::cerr << "CORE_P2P: ON_PEER_CONNECTED peer=" << peer_id.toBase58() 
+                    << " initiator=" << (out ? "true" : "false") << std::endl;
           auto peer_it = self->peers_.find(peer_id);
           if (peer_it == self->peers_.end()) {
+            std::cerr << "CORE_P2P: ON_PEER_CONNECTED creating new peer entry for " << peer_id.toBase58() << std::endl;
             peer_it =
                 self->peers_
                     .emplace(peer_id, std::make_shared<Peer>(peer_id, out))
@@ -329,23 +347,28 @@ namespace libp2p::protocol::gossip {
           auto peer = peer_it->second;
           // Avoid creating multiple streams concurrently
           if (not peer->stream_out_.has_value() and not peer->is_connecting_) {
+            std::cerr << "CORE_P2P: ON_PEER_CONNECTED creating outbound stream for " << peer_id.toBase58() << std::endl;
             peer->is_connecting_ = true;
             coroSpawn(
-                *self->io_context_, [self, connection, peer]() -> Coro<void> {
+                *self->io_context_, [self, connection, peer, peer_id]() -> Coro<void> {
                   auto stream_result = (co_await self->host_->newStream(
                       connection, self->protocols_));
                   peer->is_connecting_ = false;
                   if (not stream_result.has_value()) {
-                    // TODO: can't open out stream?
+                    std::cerr << "CORE_P2P: ON_PEER_CONNECTED failed to open out stream for " 
+                              << peer_id.toBase58() << " error=" << stream_result.error().message() << std::endl;
                     co_return;
                   }
                   if (auto stream = qtils::optionTake(peer->stream_out_)) {
                     (**stream).reset();
                   }
                   auto &stream = stream_result.value();
+                  std::cerr << "CORE_P2P: ON_PEER_CONNECTED opened out stream for " << peer_id.toBase58() 
+                            << " protocol=" << stream->protocol() << std::endl;
                   self->updatePeerKind(peer, stream->protocol());
                   peer->stream_out_ = stream;
                   if (not self->topics_.empty()) {
+                    std::cerr << "CORE_P2P: ON_PEER_CONNECTED sending initial SUBSCRIBE to " << peer_id.toBase58() << std::endl;
                     auto &message = self->getBatch(peer);
                     for (auto &[topic_hash, topic] : self->topics_) {
                       if (topic->publish_only_) {
@@ -907,18 +930,23 @@ namespace libp2p::protocol::gossip {
       return;
     }
     peer->writing_ = true;
-    coroSpawn(*io_context_, [peer]() -> Coro<void> {
+    auto peer_id = peer->peer_id_;
+    coroSpawn(*io_context_, [peer, peer_id]() -> Coro<void> {
       co_await coroYield();
       assert(peer->writing_);
       assert(peer->stream_out_.has_value());
       while (auto message = qtils::optionTake(peer->batch_)) {
         auto pb_messages = splitBatch(*message);
+        std::cerr << "CORE_P2P: CHECKWRITE sending " << pb_messages.size() 
+                  << " PB messages to " << peer_id.toBase58() << std::endl;
 
         for (auto &encoded : pb_messages) {
           assert(not encoded.empty());
           auto r =
               co_await writeVarintMessage(peer->stream_out_.value(), encoded);
           if (not r.has_value()) {
+            std::cerr << "CORE_P2P: CHECKWRITE send failed for " << peer_id.toBase58() 
+                      << " error=" << r.error().message() << std::endl;
             peer->stream_out_.reset();
             break;
           }
