@@ -277,8 +277,13 @@ namespace libp2p::protocol::gossip {
     auto peer_id = stream->remotePeerId();
     auto peer_it = peers_.find(peer_id);
     if (peer_it == peers_.end()) {
-      stream->reset();
-      return;
+      // Peer not found - this can happen if the inbound stream arrives before
+      // the on_peer_connected event fires (race condition). Create the peer
+      // entry now to avoid rejecting the stream.
+      std::cerr << "CORE_P2P: HANDLE creating missing peer entry for "
+                << peer_id.toBase58() << std::endl;
+      peer_it = peers_.emplace(peer_id, std::make_shared<Peer>(peer_id, false)).first;
+      score_.connect(peer_id);
     }
     auto peer = peer_it->second;
     updatePeerKind(peer, stream->protocol());
