@@ -508,6 +508,9 @@ namespace libp2p::protocol::gossip {
 
     // Handle SUBSCRIBE/UNSUBSCRIBE and opportunistic GRAFT on subscribe.
     for (auto &pb_subscribe : pb_message.subscriptions()) {
+      std::cerr << "CORE_P2P: RX SUBSCRIBE/UNSUBSCRIBE topic=" << pb_subscribe.topic_id()
+                << " sub=" << pb_subscribe.subscribe()
+                << " from=" << peer->peer_id_.toBase58() << std::endl;
       auto topic_hash =
           qtils::ByteVec(qtils::str2byte(pb_subscribe.topic_id()));
       auto topic_it = topics_.find(topic_hash);
