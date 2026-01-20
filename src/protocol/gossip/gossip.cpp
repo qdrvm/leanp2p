@@ -504,6 +504,9 @@ namespace libp2p::protocol::gossip {
 
     // Graylist gate: ignore peer below threshold.
     if (score_.below(peer->peer_id_, config_.score.graylist_threshold)) {
+      std::cerr << "CORE_P2P: GRAYLISTED peer=" << peer->peer_id_.toBase58()
+                << " score=" << score_.score(peer->peer_id_)
+                << " threshold=" << config_.score.graylist_threshold << std::endl;
       return true;
     }
 
@@ -655,14 +658,20 @@ namespace libp2p::protocol::gossip {
           return false;
         }
         if (score_.below(peer->peer_id_, config_.score.zero)) {
+          std::cerr << "CORE_P2P: GRAFT_REJECT_LOW_SCORE peer=" << peer->peer_id_.toBase58()
+                    << " score=" << score_.score(peer->peer_id_) << std::endl;
           return false;
         }
         return true;
       }();
       if (accept) {
+        std::cerr << "CORE_P2P: GRAFT_ACCEPTED peer=" << peer->peer_id_.toBase58()
+                  << " topic=" << pb_graft.topic_id() << std::endl;
         topic->mesh_peers_.emplace(peer);
         score_.graft(peer->peer_id_, topic_hash);
       } else {
+        std::cerr << "CORE_P2P: GRAFT_PRUNED peer=" << peer->peer_id_.toBase58()
+                  << " topic=" << pb_graft.topic_id() << std::endl;
         make_prune(*topic, peer);
       }
     }
@@ -969,6 +978,28 @@ namespace libp2p::protocol::gossip {
   // emit gossip, expire history/cache, and clear expired dont_send_ marks.
   void Gossip::heartbeat() {
     ++heartbeat_ticks_;
+    
+    // Log peer scores and mesh status during heartbeat
+    std::cerr << "CORE_P2P: === HEARTBEAT #" << heartbeat_ticks_ << " ==="  << std::endl;
+    std::cerr << "CORE_P2P: Peer count=" << peers_.size() << " Topic count=" << topics_.size() << std::endl;
+    for (auto &[peer_id, peer] : peers_) {
+      auto peer_score = score_.score(peer_id);
+      std::cerr << "CORE_P2P: PEER_SCORE peer=" << peer_id.toBase58()
+                << " score=" << peer_score
+                << " out=" << peer->out_
+                << " topics=" << peer->topics_.size() << std::endl;
+    }
+    for (auto &[topic_hash, topic] : topics_) {
+      std::cerr << "CORE_P2P: TOPIC topic=" << qtils::byte2str(topic_hash)
+                << " mesh_size=" << topic->mesh_peers_.size()
+                << " peers=" << topic->peers_.size()
+                << " publish_only=" << topic->publish_only_ << std::endl;
+      for (auto &peer : topic->mesh_peers_) {
+        std::cerr << "CORE_P2P:   MESH_PEER peer=" << peer->peer_id_.toBase58() << std::endl;
+      }
+    }
+    std::cerr << "CORE_P2P: === END HEARTBEAT ===" << std::endl;
+    
     for (auto &topic : topics_ | std::views::values) {
       topic->backoff_.shift();
     }
