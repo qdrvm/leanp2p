@@ -933,19 +933,11 @@ namespace libp2p::protocol::gossip {
     }
     peer->writing_ = true;
     auto peer_id = peer->peer_id_;
-    coroSpawn(*io_context_, [WEAK_SELF, peer, peer_id, logger = logger_]() -> Coro<void> {
+    coroSpawn(*io_context_, [peer, peer_id, logger = logger_]() -> Coro<void> {
       co_await coroYield();
       assert(peer->writing_);
       assert(peer->stream_out_.has_value());
-      while (true) {
-        auto self = weak_self.lock();
-        if (not self) {
-          break;
-        }
-        auto message = qtils::optionTake(peer->batch_);
-        if (not message) {
-          break;
-        }
+      while (auto message = qtils::optionTake(peer->batch_)) {
         auto pb_messages = splitBatch(*message);
         SL_TRACE(logger, "CHECKWRITE sending {} PB messages to {}", pb_messages.size(), peer_id.toBase58());
 
