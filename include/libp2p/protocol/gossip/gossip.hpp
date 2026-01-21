@@ -9,6 +9,7 @@
 #include <libp2p/coro/channel.hpp>
 #include <libp2p/coro/coro.hpp>
 #include <libp2p/event/bus.hpp>
+#include <libp2p/log/logger.hpp>
 #include <libp2p/protocol/base_protocol.hpp>
 #include <libp2p/protocol/gossip/config.hpp>
 #include <libp2p/protocol/gossip/score.hpp>
@@ -353,6 +354,7 @@ namespace libp2p::protocol::gossip {
         message_cache_;
     GossipPromises<PeerPtr> gossip_promises_;
     Score score_;
+    log::Logger logger_ = log::createLogger("Gossip");
     size_t heartbeat_ticks_ = 0;
     std::unordered_map<PeerPtr, size_t> count_received_ihave_;
     std::unordered_map<PeerPtr, size_t> count_sent_iwant_;
