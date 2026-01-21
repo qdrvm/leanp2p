@@ -1,0 +1,16 @@
+x64-linux/
+x64-linux/include/
+x64-linux/include/boost/
+x64-linux/include/boost/static_string.hpp
+x64-linux/include/boost/static_string/
+x64-linux/include/boost/static_string/config.hpp
+x64-linux/include/boost/static_string/static_string.hpp
+x64-linux/share/
+x64-linux/share/boost-static-string/
+x64-linux/share/boost-static-string/copyright
+x64-linux/share/boost-static-string/vcpkg.spdx.json
+x64-linux/share/boost-static-string/vcpkg_abi_info.txt
+x64-linux/share/boost_static_string/
+x64-linux/share/boost_static_string/boost_static_string-config-version.cmake
+x64-linux/share/boost_static_string/boost_static_string-config.cmake
+x64-linux/share/boost_static_string/boost_static_string-targets.cmake

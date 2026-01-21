@@ -1,0 +1,7 @@
+Package: boost-di
+Version: 1.1.0.1
+Depends: vcpkg-cmake, vcpkg-cmake-config
+Architecture: x64-linux
+Multi-Arch: same
+Abi: 1bbb113d9fe3bb42dde4403a1102671ba5966cd85320afa4fae7280280dc2bc6
+Status: install ok installed

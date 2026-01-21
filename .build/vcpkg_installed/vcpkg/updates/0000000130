@@ -1,0 +1,8 @@
+Package: boost-signals2
+Version: 1.88.0
+Depends: boost-assert, boost-bind, boost-cmake, boost-config, boost-core, boost-function, boost-headers, boost-iterator, boost-move, boost-mpl, boost-optional, boost-parameter, boost-preprocessor, boost-smart-ptr, boost-throw-exception, boost-tuple, boost-type-traits, boost-variant
+Architecture: x64-linux
+Multi-Arch: same
+Abi: 4b4084a4b12c99523ad1fc46567fd3f0c9119ab264b7a227fff83aa162fe227c
+Description: Boost signals2 module
+Status: install ok half-installed

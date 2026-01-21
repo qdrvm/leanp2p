@@ -1,0 +1,8 @@
+Package: boost-asio
+Version: 1.88.0
+Depends: boost-align, boost-assert, boost-cmake, boost-config, boost-context, boost-date-time, boost-headers, boost-system, boost-throw-exception
+Architecture: x64-linux
+Multi-Arch: same
+Abi: 486d4ea809bfa997600b1770a613f773e5579f8bd9589f4b5827c684becc2c24
+Description: Boost asio module
+Status: install ok half-installed

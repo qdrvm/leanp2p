@@ -1,0 +1,8 @@
+Package: boost-regex
+Version: 1.88.0
+Depends: boost-assert, boost-cmake, boost-concept-check, boost-config, boost-container-hash, boost-core, boost-headers, boost-integer, boost-mpl, boost-predef, boost-smart-ptr, boost-static-assert, boost-throw-exception, boost-type-traits
+Architecture: x64-linux
+Multi-Arch: same
+Abi: 0c9f92c3d780b2de0d40503d51c083467b31867a078da31a8c9d14ff32023c4a
+Description: Boost regex module
+Status: install ok installed

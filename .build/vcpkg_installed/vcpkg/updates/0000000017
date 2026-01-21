@@ -1,0 +1,8 @@
+Package: boost-variant2
+Version: 1.88.0
+Depends: boost-assert, boost-cmake, boost-config, boost-headers, boost-mp11
+Architecture: x64-linux
+Multi-Arch: same
+Abi: 1cb035793426dbf38947191cbb37e6f037bfa388d58873776f9f9a3152ac7eab
+Description: Boost variant2 module
+Status: install ok installed

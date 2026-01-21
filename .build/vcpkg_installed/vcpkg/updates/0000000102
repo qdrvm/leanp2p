@@ -1,0 +1,8 @@
+Package: boost-static-string
+Version: 1.88.0
+Depends: boost-assert, boost-cmake, boost-config, boost-container-hash, boost-core, boost-headers, boost-static-assert, boost-throw-exception, boost-utility
+Architecture: x64-linux
+Multi-Arch: same
+Abi: 0c334e9dd16e89b89b7b041f3d64fba8fc9f367d1cb9f0f0ad725fcade32d26c
+Description: Boost static_string module
+Status: install ok half-installed

@@ -1,0 +1,8 @@
+Package: boost-parameter
+Version: 1.88.0
+Depends: boost-cmake, boost-config, boost-core, boost-function, boost-fusion, boost-headers, boost-mp11, boost-mpl, boost-optional, boost-preprocessor, boost-type-traits, boost-utility
+Architecture: x64-linux
+Multi-Arch: same
+Abi: cf8ed8165ae0565b6acc07b51248e10db09ce2d26581f2328d26728a48c8be67
+Description: Boost parameter module
+Status: install ok half-installed

@@ -1,0 +1,8 @@
+Package: boost-beast
+Version: 1.88.0
+Depends: boost-asio, boost-assert, boost-bind, boost-cmake, boost-config, boost-container, boost-container-hash, boost-core, boost-endian, boost-headers, boost-intrusive, boost-logic, boost-mp11, boost-optional, boost-preprocessor, boost-smart-ptr, boost-static-assert, boost-static-string, boost-system, boost-throw-exception, boost-type-index, boost-type-traits, boost-winapi
+Architecture: x64-linux
+Multi-Arch: same
+Abi: a9dfa651dc1a4069552877d0c553ec751c11e1cc425481fd900fb229a0c12ce7
+Description: Boost beast module
+Status: install ok half-installed

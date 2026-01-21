@@ -1,0 +1,8 @@
+Package: boost-array
+Version: 1.88.0
+Depends: boost-assert, boost-cmake, boost-config, boost-headers, boost-static-assert, boost-throw-exception
+Architecture: x64-linux
+Multi-Arch: same
+Abi: 61d43bdf8a4b87469b33888095a43126a5f43762ba0db203ca9335fb5c9deeb9
+Description: Boost array module
+Status: install ok half-installed

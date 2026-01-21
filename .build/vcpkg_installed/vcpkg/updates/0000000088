@@ -1,0 +1,8 @@
+Package: boost-algorithm
+Version: 1.88.0
+Depends: boost-array, boost-assert, boost-bind, boost-cmake, boost-concept-check, boost-config, boost-core, boost-exception, boost-function, boost-headers, boost-iterator, boost-mpl, boost-range, boost-regex, boost-static-assert, boost-throw-exception, boost-tuple, boost-type-traits, boost-unordered
+Architecture: x64-linux
+Multi-Arch: same
+Abi: e3971a46b89a1cc2e33db764a1e502a4701dd48107b25595b9c28af6f5663120
+Description: Boost algorithm module
+Status: install ok half-installed

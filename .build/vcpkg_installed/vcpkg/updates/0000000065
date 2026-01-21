@@ -1,0 +1,8 @@
+Package: boost-integer
+Version: 1.88.0
+Depends: boost-assert, boost-cmake, boost-config, boost-core, boost-headers, boost-static-assert, boost-throw-exception, boost-type-traits
+Architecture: x64-linux
+Multi-Arch: same
+Abi: 1b9153cf1d6d15d26b71b633f672b615ec1e23d33c00dcc3eb771f6f3a2632f4
+Description: Boost integer module
+Status: install ok installed

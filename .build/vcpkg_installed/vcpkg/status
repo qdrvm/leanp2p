@@ -1,0 +1,30 @@
+Package: vcpkg-cmake-config
+Version: 2024-05-23
+Architecture: x64-linux
+Multi-Arch: same
+Abi: 9097b9feaf5a6e2951c96806758bbfa9cd9516d8fa9f6a15a37f20701a30ca29
+Status: install ok installed
+
+Package: vcpkg-cmake
+Version: 2024-04-23
+Architecture: x64-linux
+Multi-Arch: same
+Abi: 14fa555736fabc3375d448d45f54de5493de6b06492e440fbde685e24acb3732
+Status: install ok installed
+
+Package: vcpkg-boost
+Version: 2025-03-29
+Depends: vcpkg-cmake, vcpkg-cmake-config
+Architecture: x64-linux
+Multi-Arch: same
+Abi: 57928c85f9738accab590bdabdbfc221b1eb9ba64e0ff668e755e3a9e34dae68
+Status: install ok installed
+
+Package: boost-uninstall
+Version: 1.88.0
+Architecture: x64-linux
+Multi-Arch: same
+Abi: 38326901ad1463a79e211aa616b4f65d78bde85182055d9f244c35fc94b94f2b
+Description: Internal vcpkg port used to uninstall Boost
+Status: install ok installed
+
