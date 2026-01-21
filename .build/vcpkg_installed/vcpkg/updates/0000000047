@@ -1,8 +1,0 @@
-Package: boost-function
-Version: 1.88.0
-Depends: boost-assert, boost-bind, boost-cmake, boost-config, boost-core, boost-headers, boost-throw-exception
-Architecture: x64-linux
-Multi-Arch: same
-Abi: c393af80f6018675fd08cd0cd7380a3cc6d8ab31fddc2fd96e1521da0bd405d9
-Description: Boost function module
-Status: install ok installed

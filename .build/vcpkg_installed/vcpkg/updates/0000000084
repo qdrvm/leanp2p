@@ -1,8 +1,0 @@
-Package: boost-unordered
-Version: 1.88.0
-Depends: boost-assert, boost-cmake, boost-config, boost-container-hash, boost-core, boost-headers, boost-mp11, boost-predef, boost-throw-exception
-Architecture: x64-linux
-Multi-Arch: same
-Abi: 293bc71d53a85d6260633e374919e7f0113a678acbd7bd2d9a829bdd25ae97d2
-Description: Boost unordered module
-Status: install ok half-installed

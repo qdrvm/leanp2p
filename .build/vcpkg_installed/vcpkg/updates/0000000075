@@ -1,8 +1,0 @@
-Package: boost-numeric-conversion
-Version: 1.88.0
-Depends: boost-cmake, boost-config, boost-conversion, boost-core, boost-headers, boost-mpl, boost-preprocessor, boost-throw-exception, boost-type-traits
-Architecture: x64-linux
-Multi-Arch: same
-Abi: 9de1c7dd0001f7d6f9e77225bc56a401f998e81019b2dd1cf8d24e95225365e8
-Description: Boost numeric_conversion module
-Status: install ok installed

@@ -1,8 +1,0 @@
-Package: boost-scope
-Version: 1.88.0
-Depends: boost-assert, boost-cmake, boost-config, boost-core, boost-headers, boost-type-traits
-Architecture: x64-linux
-Multi-Arch: same
-Abi: eee4e03055f7cf12abc87e40851bfe0c752d5384e5f318a88291b97dae18ac91
-Description: Boost scope module
-Status: install ok installed

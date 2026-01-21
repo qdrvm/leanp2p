@@ -1,8 +1,0 @@
-Package: boost-any
-Version: 1.88.0
-Depends: boost-assert, boost-cmake, boost-config, boost-headers, boost-throw-exception, boost-type-index
-Architecture: x64-linux
-Multi-Arch: same
-Abi: 992d34cb9ededf8435e9220cfea24b7bbafa82e775c2b147ea24a3d833a8e2dc
-Description: Boost any module
-Status: install ok half-installed

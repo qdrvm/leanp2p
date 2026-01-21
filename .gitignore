@@ -43,3 +43,4 @@ dist
 ninja_build_release
 _builds
 _logs
+.build

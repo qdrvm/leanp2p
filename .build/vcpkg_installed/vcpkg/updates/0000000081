@@ -1,8 +1,0 @@
-Package: boost-container
-Version: 1.88.0
-Depends: boost-assert, boost-cmake, boost-config, boost-headers, boost-intrusive, boost-move
-Architecture: x64-linux
-Multi-Arch: same
-Abi: 5561aa1a96a8900df85fc17aa1fba6d08e097f0ffed2e5c41d5aa26c672cf5b7
-Description: Boost container module
-Status: install ok installed
