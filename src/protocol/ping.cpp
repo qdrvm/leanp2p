@@ -81,12 +81,16 @@ namespace libp2p::protocol {
         }
         stream = stream_result.value();
       }
-      auto r = co_await ping(
-          stream,
-          std::chrono::duration_cast<std::chrono::milliseconds>(config_.timeout));
+      auto r =
+          co_await ping(stream,
+                        std::chrono::duration_cast<std::chrono::milliseconds>(
+                            config_.timeout));
       if (not r.has_value()) {
         stream->reset();
         stream.reset();
+      } else {
+        host_->getPeerRepository().getRttRepository().updateRtt(
+            connection->remotePeer(), r.value());
       }
       timer.expires_after(config_.interval);
       co_await timer.async_wait(boost::asio::use_awaitable);
@@ -103,6 +107,10 @@ namespace libp2p::protocol {
     auto stream = stream_result.value();
     auto res = co_await ping(stream, timeout);
     stream->close();
+    if (res.has_value()) {
+      host_->getPeerRepository().getRttRepository().updateRtt(
+          conn->remotePeer(), res.value());
+    }
     co_return res;
   }
 
@@ -132,8 +140,8 @@ namespace libp2p::protocol {
     auto end = std::chrono::steady_clock::now();
     timer.cancel();
     if (r.has_value()) {
-      co_return std::chrono::duration_cast<std::chrono::microseconds>(end -
-                                                                      start);
+      co_return std::chrono::duration_cast<std::chrono::microseconds>(end
+                                                                      - start);
     }
     co_return r.error();
   }

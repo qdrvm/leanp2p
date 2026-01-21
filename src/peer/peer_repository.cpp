@@ -23,13 +23,16 @@ namespace libp2p::peer {
   PeerRepository::PeerRepository(
       std::shared_ptr<AddressRepository> addr_repo,
       std::shared_ptr<KeyRepository> key_repo,
-      std::shared_ptr<ProtocolRepository> protocol_repo)
+      std::shared_ptr<ProtocolRepository> protocol_repo,
+      std::shared_ptr<RttRepository> rtt_repo)
       : addr_(std::move(addr_repo)),
         key_(std::move(key_repo)),
-        proto_(std::move(protocol_repo)) {
+        proto_(std::move(protocol_repo)),
+        rtt_(std::move(rtt_repo)) {
     BOOST_ASSERT(addr_ != nullptr);
     BOOST_ASSERT(key_ != nullptr);
     BOOST_ASSERT(proto_ != nullptr);
+    BOOST_ASSERT(rtt_ != nullptr);
   }
 
   AddressRepository &PeerRepository::getAddressRepository() {
@@ -44,11 +47,17 @@ namespace libp2p::peer {
     return *proto_;
   }
 
+  RttRepository &PeerRepository::getRttRepository() {
+    return *rtt_;
+  }
+
   std::unordered_set<PeerId> PeerRepository::getPeers() const {
     std::unordered_set<PeerId> peers;
     merge_sets<PeerId>(peers, addr_->getPeers());
     merge_sets<PeerId>(peers, key_->getPeers());
     merge_sets<PeerId>(peers, proto_->getPeers());
+    // RttRepository doesn't have getPeers() yet, but it's fine.
+    // Usually peers in RttRepository should be in others too.
     return peers;
   }
 
