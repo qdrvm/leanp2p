@@ -102,7 +102,7 @@ namespace libp2p::protocol {
     }
     auto stream = stream_result.value();
     auto res = co_await ping(stream, timeout);
-    stream->close();
+    std::ignore = stream->close();
     co_return res;
   }
 
