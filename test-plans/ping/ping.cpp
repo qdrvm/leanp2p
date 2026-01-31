@@ -17,6 +17,7 @@
 #include <libp2p/coro/spawn.hpp>
 #include <fmt/format.h>
 #include <libp2p/connection/stream.hpp>
+#include <libp2p/common/weak_macro.hpp>
 
 std::optional<std::string> getenv_opt(const char* name){
     if(const char* v = std::getenv(name)){
@@ -110,6 +111,7 @@ int main(){
     redisContext* ctx = connect_redis(ip, redisPort, testTimeout, log);
 
     if(!wait_for_redis(ctx, testTimeout)){
+        redisFree(ctx);
         return 1;
     }
 
@@ -121,7 +123,7 @@ int main(){
     std::shared_ptr<boost::asio::io_context> io_context;
     std::shared_ptr<libp2p::host::BasicHost> host;
     std::shared_ptr<libp2p::crypto::random::CSPRNG> random;
-    if(*transport == "quic"){
+    if(*transport == "quic-v1"){
         auto injector = libp2p::injector::makeHostInjector(
             libp2p::injector::useKeyPair(sample_peer.keypair),
             libp2p::injector::useTransportAdaptors<libp2p::transport::QuicTransport>()
@@ -130,6 +132,8 @@ int main(){
         io_context = injector.create<std::shared_ptr<boost::asio::io_context>>();
         host = injector.create<std::shared_ptr<libp2p::host::BasicHost>>();
         random = injector.create<std::shared_ptr<libp2p::crypto::random::CSPRNG>>();
+
+        host->listenProtocol(injector.create<std::shared_ptr<libp2p::protocol::Ping>>());
     }
     else{
         log->error("Unsupported transport protocol\n");
@@ -145,7 +149,7 @@ int main(){
     }
 
     host->start();
-
+    ping->start();
     log->info("Connection string: {}", sample_peer.connect);
 
     if(isDialer){
@@ -165,7 +169,7 @@ int main(){
                     log->info("Connecting to {}", connect_info.addresses.at(0));
                     auto handShakeStart = std::chrono::steady_clock::now();
                     auto connect_res = (co_await host->connect(connect_info));
-                    if (!connect_res.has_value()) {
+                    if (not connect_res.has_value()) {
                         log->error("Failed to connect to peer");
                         io_context->stop();
                         co_return;
@@ -175,7 +179,7 @@ int main(){
                         auto connection = connect_res.value();
 
                         auto ping_res = (co_await ping->ping(connection, std::chrono::milliseconds(testTimeout)));
-                        if(!ping_res.has_value()){
+                        if(not ping_res.has_value()){
                             log->error("Ping failed");
                             io_context->stop();
                             co_return;
@@ -199,15 +203,49 @@ int main(){
             }
             else{
                 log->error("Failed to wait for listener to be ready");
+                redisFree(ctx);
                 return 1;
             }
         }
         else{
             log->error("Failed to get listener address from redis");
+            redisFree(ctx);
             return 1;
         }
     }else{
-        
+        redisReply* replyListenAddr = (redisReply*)redisCommand(ctx, fmt::format("RPUSH listenAddr {}", testTimeout).c_str());
+        if(replyListenAddr){
+            bool ok = replyListenAddr->type == REDIS_REPLY_STATUS;
+            freeReplyObject(replyListenAddr);
+            if(ok){
+                log->info("Listener address pushed to redis");
+                
+                boost::asio::steady_timer timeout_timer(*io_context);
+                timeout_timer.expires_after(std::chrono::seconds(testTimeout));
+                timeout_timer.async_wait([&](const boost::system::error_code& ec) {
+                    if(!ec){
+                        log->info("Test timeout reached");
+                        io_context->stop();
+                    }
+                });
+
+                io_context->run();
+
+                log->info("Listener exiting");
+                redisFree(ctx);
+                return 1;
+            }
+            else{
+                log->error("Failed to push address to redis");
+                redisFree(ctx);
+                return 1;
+            }
+        }
+        else{
+            log->error("Failed to get status of address push from redis");
+            redisFree(ctx);
+            return 1;
+        }
     }
 
     return 0;

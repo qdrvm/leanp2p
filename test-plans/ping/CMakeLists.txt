@@ -4,5 +4,5 @@ add_executable(ping
 target_link_libraries(ping
     libp2p
     p2p_protocol_ping
-    hiredis
+    hiredis::hiredis
 )
