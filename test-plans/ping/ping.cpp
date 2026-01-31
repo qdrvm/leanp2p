@@ -16,6 +16,7 @@
 #include <libp2p/protocol/ping.hpp>
 #include <libp2p/coro/spawn.hpp>
 #include <fmt/format.h>
+#include <libp2p/connection/stream.hpp>
 
 std::optional<std::string> getenv_opt(const char* name){
     if(const char* v = std::getenv(name)){
@@ -144,7 +145,6 @@ int main(){
     }
 
     host->start();
-    ping->start();
 
     log->info("Connection string: {}", sample_peer.connect);
 
@@ -163,11 +163,37 @@ int main(){
 
                 libp2p::coroSpawn(*io_context, [&]() -> libp2p::Coro<void> {
                     log->info("Connecting to {}", connect_info.addresses.at(0));
-                    auto connect_res = co_await host->connect(connect_info);
+                    auto handShakeStart = std::chrono::steady_clock::now();
+                    auto connect_res = (co_await host->connect(connect_info));
                     if (!connect_res.has_value()) {
                         log->error("Failed to connect to peer");
-                    } else {
-                        log->info("Connected to peer, pinging will start automatically");
+                        io_context->stop();
+                        co_return;
+                    }
+                    else{
+                        log->info("Connected successfully");
+                        auto connection = connect_res.value();
+
+                        auto ping_res = (co_await ping->ping(connection, std::chrono::milliseconds(testTimeout)));
+                        if(!ping_res.has_value()){
+                            log->error("Ping failed");
+                            io_context->stop();
+                            co_return;
+                        }
+                        else{
+                            auto handShakeEnd = std::chrono::steady_clock::now();
+                            log->info("Ping successful");
+                            auto ping_rtt = ping_res.value();
+                            auto handShakePlusOneRTT = std::chrono::duration_cast<std::chrono::milliseconds>(handShakeEnd - handShakeStart);
+
+                            // Printing out results in stdout
+                            std::cout << "latency:\n";
+                            std::cout << fmt::format("  handshake_plus_one_rtt: {}\n", handShakePlusOneRTT.count());
+                            std::cout << fmt::format("  ping_rtt: {}\n", ping_rtt.count());
+                            std::cout << " unit: ms\n";
+
+                            io_context->stop();
+                        }
                     }
                 });
             }
@@ -180,6 +206,8 @@ int main(){
             log->error("Failed to get listener address from redis");
             return 1;
         }
+    }else{
+        
     }
 
     return 0;
