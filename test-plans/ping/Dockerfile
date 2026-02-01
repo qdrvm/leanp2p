@@ -3,6 +3,9 @@ FROM ubuntu:24.04 AS builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
+    software-properties-common \
+    && add-apt-repository ppa:ubuntu-toolchain-r/test \
+    && apt-get update && apt-get install -y \
     git \
     cmake \
     ninja-build \
@@ -11,8 +14,12 @@ RUN apt-get update && apt-get install -y \
     unzip \
     tar \
     pkg-config \
-    build-essential \
+    gcc-14 \
+    g++-14 \
     nasm \
+    && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 100 \
+    && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-14 100 \
+    && update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++-14 100 \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up vcpkg
@@ -29,8 +36,12 @@ COPY . .
 RUN cmake --preset test-plans \
     && cmake --build build -j$(nproc) --target ping
 
-# Runtime stage
-FROM alpine
+FROM ubuntu:24.04
+
+# Install only essential runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy the compiled binary
 COPY --from=builder /build/build/test-plans/ping/ping /usr/local/bin/ping

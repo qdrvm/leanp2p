@@ -213,7 +213,7 @@ int main(){
             return 1;
         }
     }else{
-        redisReply* replyListenAddr = (redisReply*)redisCommand(ctx, fmt::format("RPUSH listenAddr {}", testTimeout).c_str());
+        redisReply* replyListenAddr = (redisReply*)redisCommand(ctx, fmt::format("RPUSH listenAddr {}", sample_peer.connect).c_str());
         if(replyListenAddr){
             bool ok = replyListenAddr->type == REDIS_REPLY_STATUS;
             freeReplyObject(replyListenAddr);
