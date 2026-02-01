@@ -33,8 +33,9 @@ WORKDIR /build
 COPY . .
 
 # Configure and build
-RUN cmake --preset test-plans \
-    && cmake --build build -j$(nproc) --target ping
+# Separated both commands as preset loading takes a lot of time, caching it makes testing faster
+RUN cmake --preset test-plans
+RUN cmake --build build -j$(nproc) --target ping
 
 FROM ubuntu:24.04
 
