@@ -67,14 +67,19 @@ bool wait_for_redis(redisContext* ctx, int timeout_ms){
 }
 
 int parse_redis_port(std::string& redisAddr, libp2p::log::Logger log){
-    std::string redisPortStr = redisAddr.substr(redisAddr.find(":"), redisAddr.length());
+    size_t colon_pos = redisAddr.find(":");
+    if (colon_pos == std::string::npos) {
+        log->error("Could not find port in redis address, using default\n");
+        return 6379;
+    }
+    std::string redisPortStr = redisAddr.substr(colon_pos + 1);
     int port{};
     auto [ptr, ec] = std::from_chars(redisPortStr.data(), redisPortStr.data() + redisPortStr.size(), port);
     if(ec == std::errc{}){
         return port;
     }
     else{
-        log->error("Could not parse reddis port, using default\n");
+        log->error("Could not parse redis port, using default\n");
         return 6379;
     }
 }
@@ -153,7 +158,7 @@ int main(){
     log->info("Connection string: {}", sample_peer.connect);
 
     if(isDialer){
-        redisReply* replyListenAddr = (redisReply*)redisCommand(ctx, fmt::format("BLPOP listenAddr {}", testTimeout).c_str());
+        redisReply* replyListenAddr = (redisReply*)redisCommand(ctx, "BLPOP listenAddr %d", testTimeout);
         if(replyListenAddr){
             bool ok = replyListenAddr->type == REDIS_REPLY_STATUS;
             if(ok){
@@ -213,7 +218,7 @@ int main(){
             return 1;
         }
     }else{
-        redisReply* replyListenAddr = (redisReply*)redisCommand(ctx, fmt::format("RPUSH listenAddr {}", sample_peer.connect).c_str());
+        redisReply* replyListenAddr = (redisReply*)redisCommand(ctx, "RPUSH listenAddr %s", sample_peer.connect);
         if(replyListenAddr){
             bool ok = replyListenAddr->type == REDIS_REPLY_STATUS;
             freeReplyObject(replyListenAddr);
