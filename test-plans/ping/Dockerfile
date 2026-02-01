@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     tar \
     pkg-config \
     build-essential \
+    nasm \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up vcpkg
