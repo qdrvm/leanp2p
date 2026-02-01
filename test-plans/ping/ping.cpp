@@ -220,7 +220,7 @@ int main(){
     }else{
         redisReply* replyListenAddr = (redisReply*)redisCommand(ctx, "RPUSH listenAddr %s", sample_peer.connect);
         if(replyListenAddr){
-            bool ok = replyListenAddr->type == REDIS_REPLY_STATUS;
+            bool ok = replyListenAddr->type == REDIS_REPLY_ARRAY && replyListenAddr->elements == 2;
             freeReplyObject(replyListenAddr);
             if(ok){
                 log->info("Listener address pushed to redis");
