@@ -1,51 +1,37 @@
-# Build stage
-FROM ubuntu:24.04 AS builder
+FROM alpine:3.19 AS builder
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
-    software-properties-common \
-    && add-apt-repository ppa:ubuntu-toolchain-r/test \
-    && apt-get update && apt-get install -y \
+RUN apk add --no-cache \
     git \
     cmake \
-    ninja-build \
+    ninja \
     curl \
     zip \
     unzip \
     tar \
-    pkg-config \
-    gcc-14 \
-    g++-14 \
+    pkgconf \
+    gcc \
+    g++ \
     nasm \
-    && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 100 \
-    && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-14 100 \
-    && update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++-14 100 \
-    && rm -rf /var/lib/apt/lists/*
+    linux-headers \
+    musl-dev \
+    make \
+    bash
 
-# Set up vcpkg
 ENV VCPKG_ROOT=/opt/vcpkg
 RUN git clone https://github.com/microsoft/vcpkg.git $VCPKG_ROOT \
     && $VCPKG_ROOT/bootstrap-vcpkg.sh \
     && rm -rf $VCPKG_ROOT/.git
 
-# Copy project files
 WORKDIR /build
 COPY . .
 
-# Configure and build
-# Separated both commands as preset loading takes a lot of time, caching it makes testing faster
-RUN cmake --preset test-plans
-RUN cmake --build build -j$(nproc) --target ping
+RUN cmake --preset test-plans -DCMAKE_BUILD_TYPE=Release \
+    -DBUILD_SHARED_LIBS=OFF \
+    -DCMAKE_EXE_LINKER_FLAGS="-static" \
+    && cmake --build build -j$(nproc) --target ping
 
-FROM ubuntu:24.04
+FROM alpine:3.19
 
-# Install only essential runtime dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /build/build/test-plans/ping/ping /ping
 
-# Copy the compiled binary
-COPY --from=builder /build/build/test-plans/ping/ping /usr/local/bin/ping
-
-# Run the ping executable
-ENTRYPOINT ["/usr/local/bin/ping"]
+ENTRYPOINT ["/ping"]
