@@ -84,7 +84,19 @@ int parse_redis_port(std::string& redisAddr, libp2p::log::Logger log){
     }
 }
 
-std::shared_ptr<libp2p::host::BasicHost> make_host(){}
+std::string parse_redis_host(const std::string &redisAddr, libp2p::log::Logger log) {
+    size_t colonPos = redisAddr.find(':');
+    if (colonPos == std::string::npos) {
+        log->warn("No port separator found in redis address '{}', treating entire string as host", redisAddr);
+        return redisAddr;
+    }
+    std::string host = redisAddr.substr(0, colonPos);
+    if (host.empty()) {
+        log->error("Empty host in redis address '{}'", redisAddr);
+        return "localhost";
+    }
+    return host;
+}
 
 int main(){
     libp2p::simpleLoggingSystem();
@@ -112,8 +124,9 @@ int main(){
     }
 
     int redisPort = parse_redis_port(redisAddr, log);
+    std::string redisHost = parse_redis_host(redisAddr, log);
 
-    redisContext* ctx = connect_redis(ip, redisPort, testTimeout, log);
+    redisContext* ctx = connect_redis(redisHost, redisPort, testTimeout, log);
 
     if(!wait_for_redis(ctx, testTimeout)){
         redisFree(ctx);
