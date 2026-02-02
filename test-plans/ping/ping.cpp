@@ -160,9 +160,16 @@ int main(){
     if(isDialer){
         redisReply* replyListenAddr = (redisReply*)redisCommand(ctx, "BLPOP listenAddr %d", testTimeout);
         if(replyListenAddr){
-            bool ok = replyListenAddr->type == REDIS_REPLY_STATUS;
+            if(replyListenAddr->type == REDIS_REPLY_ERROR){
+                log->error("Redis BLPOP error: {}", replyListenAddr->str);
+                freeReplyObject(replyListenAddr);
+                redisFree(ctx);
+                return 1;
+            }
+            bool ok = replyListenAddr->type == REDIS_REPLY_ARRAY && replyListenAddr->elements == 2;
             if(ok){
-                std::string listenAddr = replyListenAddr->str;
+                std::string listenAddr = replyListenAddr->element[1]->str;
+                log->info("Retrieved listener address from redis: {}", listenAddr);
                 auto address_res = libp2p::Multiaddress::create(listenAddr);
                 auto address = address_res.value();
                 auto peer_id_res = address.getPeerId();
@@ -199,31 +206,45 @@ int main(){
                             std::cout << "latency:\n";
                             std::cout << fmt::format("  handshake_plus_one_rtt: {}\n", handShakePlusOneRTT.count());
                             std::cout << fmt::format("  ping_rtt: {}\n", ping_rtt.count());
-                            std::cout << " unit: ms\n";
+                            std::cout << "  unit: ms\n";
 
                             io_context->stop();
                         }
                     }
                 });
+
+                io_context->run();
+                redisFree(ctx);
             }
             else{
-                log->error("Failed to wait for listener to be ready");
+                log->error("Failed to wait for listener to be ready - unexpected reply type: {} (elements: {})", 
+                          replyListenAddr->type, 
+                          replyListenAddr->type == REDIS_REPLY_ARRAY ? replyListenAddr->elements : 0);
+                freeReplyObject(replyListenAddr);
                 redisFree(ctx);
                 return 1;
             }
         }
         else{
-            log->error("Failed to get listener address from redis");
+            log->error("Failed to get listener address from redis - {}", ctx->errstr);
             redisFree(ctx);
             return 1;
         }
     }else{
-        redisReply* replyListenAddr = (redisReply*)redisCommand(ctx, "RPUSH listenAddr %s", sample_peer.connect);
+        std::string connectStr = std::string(sample_peer.connect.getStringAddress());
+        log->info("Pushing connect string {}", connectStr);
+        redisReply* replyListenAddr = (redisReply*)redisCommand(ctx, "RPUSH listenAddr %s", connectStr.c_str());
         if(replyListenAddr){
-            bool ok = replyListenAddr->type == REDIS_REPLY_ARRAY && replyListenAddr->elements == 2;
-            freeReplyObject(replyListenAddr);
+            if(replyListenAddr->type == REDIS_REPLY_ERROR){
+                log->error("Redis RPUSH error: {}", replyListenAddr->str);
+                freeReplyObject(replyListenAddr);
+                redisFree(ctx);
+                return 1;
+            }
+            bool ok = replyListenAddr->type == REDIS_REPLY_INTEGER;
             if(ok){
                 log->info("Listener address pushed to redis");
+                freeReplyObject(replyListenAddr);
                 
                 boost::asio::steady_timer timeout_timer(*io_context);
                 timeout_timer.expires_after(std::chrono::seconds(testTimeout));
@@ -241,13 +262,14 @@ int main(){
                 return 1;
             }
             else{
-                log->error("Failed to push address to redis");
+                log->error("Failed to push address to redis - unexpected reply type: {}", replyListenAddr->type);
+                freeReplyObject(replyListenAddr);
                 redisFree(ctx);
                 return 1;
             }
         }
         else{
-            log->error("Failed to get status of address push from redis");
+            log->error("Failed to get status of address push from redis - {}", ctx->errstr);
             redisFree(ctx);
             return 1;
         }
