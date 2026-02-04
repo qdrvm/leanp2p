@@ -9,6 +9,7 @@
 #include <optional>
 #include <unordered_map>
 
+#include <libp2p/peer/address_repository/inmem_address_repository.hpp>
 #include <libp2p/peer/user_agent_repository.hpp>
 
 namespace libp2p::peer {
@@ -21,17 +22,21 @@ namespace libp2p::peer {
    public:
     ~InmemUserAgentRepository() override = default;
 
-    void setUserAgent(const PeerId &p, std::string_view ua) override;
+    void updateUserAgent(const PeerId &p,
+                         std::string_view ua,
+                         Milliseconds ttl) override;
 
-    void unsetUserAgent(const PeerId &p) override;
+    void updateTtl(const PeerId &p, Milliseconds ttl) override;
 
     [[nodiscard]] std::optional<std::string> getUserAgent(
         const PeerId &p) const override;
 
-    [[nodiscard]] std::unordered_set<PeerId> getPeers() const override;
+    void collectGarbage() override;
 
    private:
-    std::unordered_map<PeerId, std::string> db_;
+    std::unordered_map<PeerId, std::pair<std::string, Clock::time_point>> db_;
+
+    [[nodiscard]] Clock::time_point calculateExpirationTime(const Milliseconds &ttl) const;
   };
 
 }  // namespace libp2p::peer
