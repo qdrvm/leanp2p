@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <libp2p/basic/garbage_collectable.hpp>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -18,24 +19,31 @@ namespace libp2p::peer {
   /**
    * @brief Storage for mapping between peer and its known protocols.
    */
-  class UserAgentRepository {
+  class UserAgentRepository : public basic::GarbageCollectable {
    public:
-    virtual ~UserAgentRepository() = default;
+    using Milliseconds = std::chrono::milliseconds;
+
+    ~UserAgentRepository() override = default;
 
     /**
-     * @brief Set agent for a peer.
+     * @brief Update user-agent with new {@param ttl} or insert new
+     * user-agent with new {@param ttl}
      * @param p peer
-     * @param agent type of agent-name
-     * @return peer error, if no peer {@param p} found
+     * @param ua user-agent type
+     * @param ttl ttl
+     * @return true/false if at least one new user-agent was added or not,
      */
-    virtual void setUserAgent(const PeerId &p, std::string_view ua) = 0;
+    virtual void updateUserAgent(const PeerId &p,
+                                 std::string_view ua,
+                                 Milliseconds ttl) = 0;
 
     /**
-     * @brief Removes user-agent of the peer.
+     * @brief Bump ttl of a given peer {@param p}
      * @param p peer
-     * @return peer error, if no peer {@param p} found
+     * @param ttl time to live for user-agent
+     * @return error when no peer has been found
      */
-    virtual void unsetUserAgent(const PeerId &) = 0;
+    virtual void updateTtl(const PeerId &p, Milliseconds ttl) = 0;
 
     /**
      * @brief Get user-agent by given peer {@param p}
@@ -45,12 +53,6 @@ namespace libp2p::peer {
      */
     [[nodiscard]] virtual std::optional<std::string> getUserAgent(
         const PeerId &p) const = 0;
-
-    /**
-     * @brief Returns set of peer ids known by this repository.
-     * @return unordered set of peers
-     */
-    [[nodiscard]] virtual std::unordered_set<PeerId> getPeers() const = 0;
   };
 
 }  // namespace libp2p::peer

@@ -121,7 +121,8 @@ namespace libp2p::protocol {
               peer_id, message.listen_addresses, peer::ttl::kRecentlyConnected)
           .value();
       auto &user_agent_repo = peer_repo.getUserAgentRepository();
-      user_agent_repo.setUserAgent(peer_id, message.agent_version);
+      user_agent_repo.updateUserAgent(
+          peer_id, message.agent_version, peer::ttl::kRecentlyConnected);
 
       host_->getBus().getChannel<OnIdentifyChannel>().publish(message);
       co_return outcome::success();
