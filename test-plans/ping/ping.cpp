@@ -115,6 +115,8 @@ int main(){
 
     int redisPort = parse_redis_port(redisAddr, log);
     std::string redisHost = parse_redis_host(redisAddr, log);
+    std::string redisKey = fmt::format("{}_listener_multiaddr", *testKey);
+    log->info("Redis key: {}", redisKey);
 
     redisContext* ctx = connect_redis(redisHost, redisPort, testTimeoutSeconds * 1000, log); //Redis connection needs timeout in ms
 
@@ -166,7 +168,7 @@ int main(){
     log->info("Connection string: {}", sample_peer.connect);
 
     if(isDialer){
-        redisReply* replyListenAddr = (redisReply*)redisCommand(ctx, "BLPOP %s %d", fmt::format("{}_listener_multiaddr", *testKey), testTimeoutSeconds);
+        redisReply* replyListenAddr = (redisReply*)redisCommand(ctx, "BLPOP %s %d", redisKey.c_str(), testTimeoutSeconds);
         if(replyListenAddr){
             if(replyListenAddr->type == REDIS_REPLY_ERROR){
                 log->error("Redis BLPOP error: {}", replyListenAddr->str);
@@ -241,7 +243,7 @@ int main(){
     }else{
         std::string connectStr = std::string(sample_peer.connect.getStringAddress());
         log->info("Pushing connect string {}", connectStr);
-        redisReply* replyListenAddr = (redisReply*)redisCommand(ctx, "RPUSH %s %s", fmt::format("{}_listener_multiaddr", *testKey), connectStr.c_str());
+        redisReply* replyListenAddr = (redisReply*)redisCommand(ctx, "RPUSH %s %s", redisKey.c_str(), connectStr.c_str());
         if(replyListenAddr){
             if(replyListenAddr->type == REDIS_REPLY_ERROR){
                 log->error("Redis RPUSH error: {}", replyListenAddr->str);
