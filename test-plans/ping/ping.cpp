@@ -203,7 +203,7 @@ int main(){
                         log->info("Connected successfully");
                         auto connection = connect_res.value();
 
-                        auto ping_res = (co_await ping->ping(connection, std::chrono::milliseconds(testTimeout)));
+                        auto ping_res = (co_await ping->ping(connection, std::chrono::seconds(testTimeout)));
                         if(not ping_res.has_value()){
                             log->error("Ping failed");
                             io_context->stop();
