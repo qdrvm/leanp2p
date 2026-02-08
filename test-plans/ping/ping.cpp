@@ -136,7 +136,7 @@ int main(){
     bool isDialer = *isDialerStr == "true";
 
     unsigned int random_seed = static_cast<unsigned int>(std::random_device{}());
-    auto sample_peer = libp2p::SamplePeer::makeEd25519(random_seed);
+    auto sample_peer = libp2p::SamplePeer(random_seed, ip, libp2p::SamplePeer::samplePort(random_seed), libp2p::SamplePeer::Ed25519);
 
     std::shared_ptr<boost::asio::io_context> io_context;
     std::shared_ptr<libp2p::host::BasicHost> host;
