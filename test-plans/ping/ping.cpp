@@ -102,38 +102,33 @@ int main(){
     libp2p::simpleLoggingSystem();
     auto log = libp2p::log::createLogger("Ping");
 
-    auto transport = getenv_opt("transport");
-    auto muxer = getenv_opt("muxer");
-    auto secureChannel = getenv_opt("security");
-    auto isDialerStr = getenv_opt("is_dialer");
-    std::string ip = getenv_opt("ip").value_or("0.0.0.0");
-    std::string redisAddr = getenv_opt("redis_addr").value_or("redis:6379");
-    auto testTimeoutStr = getenv_opt("test_timeout_seconds");
+    auto transport = getenv_opt("TRANSPORT");
+    auto muxer = getenv_opt("MUXER"); //There for future use as skipped when transport=quic-v1
+    auto secureChannel = getenv_opt("SECURE_CHANNEL"); //There for future use as skipped when transport=quic-v1
+    auto isDialerStr = getenv_opt("IS_DIALER");
+    std::string ip = getenv_opt("LISTENER_IP").value_or("0.0.0.0");
+    std::string redisAddr = getenv_opt("REDIS_ADDR").value_or("redis:6379");
+    auto testKey = getenv_opt("TEST_KEY");
+    auto debugStr = getenv_opt("DEBUG");
 
-    int testTimeout = 3 * 60;
-    if (testTimeoutStr) {
-        int value{};
-        auto [ptr, ec] = std::from_chars(testTimeoutStr->data(), testTimeoutStr->data() + testTimeoutStr->size(), value);
-        if(ec == std::errc{}){
-            testTimeout = value;
-        }
-        else{
-            log->error("Invalid test timeout, using default\n");
-            return 1;
-        }
-    }
+    int testTimeoutSeconds = 300;
 
     int redisPort = parse_redis_port(redisAddr, log);
     std::string redisHost = parse_redis_host(redisAddr, log);
 
-    redisContext* ctx = connect_redis(redisHost, redisPort, testTimeout, log);
+    redisContext* ctx = connect_redis(redisHost, redisPort, testTimeoutSeconds * 1000, log); //Redis connection needs timeout in ms
 
-    if(!wait_for_redis(ctx, testTimeout)){
+    if(!wait_for_redis(ctx, testTimeoutSeconds)){
         redisFree(ctx);
         return 1;
     }
 
     bool isDialer = *isDialerStr == "true";
+    bool debug = *debugStr == "true";
+
+    if(!debug){
+        log->setLevel(libp2p::log::Level::ERROR);
+    }
 
     unsigned int random_seed = static_cast<unsigned int>(std::random_device{}());
     auto sample_peer = libp2p::SamplePeer(random_seed, ip, libp2p::SamplePeer::samplePort(random_seed), libp2p::SamplePeer::Ed25519);
@@ -171,7 +166,7 @@ int main(){
     log->info("Connection string: {}", sample_peer.connect);
 
     if(isDialer){
-        redisReply* replyListenAddr = (redisReply*)redisCommand(ctx, "BLPOP listenAddr %d", testTimeout);
+        redisReply* replyListenAddr = (redisReply*)redisCommand(ctx, "BLPOP %s %d", fmt::format("{}_listener_multiaddr", *testKey), testTimeoutSeconds);
         if(replyListenAddr){
             if(replyListenAddr->type == REDIS_REPLY_ERROR){
                 log->error("Redis BLPOP error: {}", replyListenAddr->str);
@@ -203,7 +198,7 @@ int main(){
                         log->info("Connected successfully");
                         auto connection = connect_res.value();
 
-                        auto ping_res = (co_await ping->ping(connection, std::chrono::seconds(testTimeout)));
+                        auto ping_res = (co_await ping->ping(connection, std::chrono::seconds(testTimeoutSeconds)));
                         if(not ping_res.has_value()){
                             log->error("Ping failed");
                             io_context->stop();
@@ -246,7 +241,7 @@ int main(){
     }else{
         std::string connectStr = std::string(sample_peer.connect.getStringAddress());
         log->info("Pushing connect string {}", connectStr);
-        redisReply* replyListenAddr = (redisReply*)redisCommand(ctx, "RPUSH listenAddr %s", connectStr.c_str());
+        redisReply* replyListenAddr = (redisReply*)redisCommand(ctx, "RPUSH %s %s", fmt::format("{}_listener_multiaddr", *testKey), connectStr.c_str());
         if(replyListenAddr){
             if(replyListenAddr->type == REDIS_REPLY_ERROR){
                 log->error("Redis RPUSH error: {}", replyListenAddr->str);
@@ -260,7 +255,7 @@ int main(){
                 freeReplyObject(replyListenAddr);
                 
                 boost::asio::steady_timer timeout_timer(*io_context);
-                timeout_timer.expires_after(std::chrono::seconds(testTimeout));
+                timeout_timer.expires_after(std::chrono::seconds(testTimeoutSeconds));
                 timeout_timer.async_wait([&](const boost::system::error_code& ec) {
                     if(!ec){
                         log->info("Test timeout reached");
