@@ -7,6 +7,7 @@
 #include <libp2p/network/connection_manager.hpp>
 
 #include <algorithm>
+#include <ranges>
 
 namespace libp2p::network {
 
@@ -33,8 +34,8 @@ namespace libp2p::network {
     return out;
   }
 
-  ConnectionManager::ConnectionSPtr
-  ConnectionManager::getBestConnectionForPeer(const peer::PeerId &p) const {
+  ConnectionManager::ConnectionSPtr ConnectionManager::getBestConnectionForPeer(
+      const peer::PeerId &p) const {
     auto it = connections_.find(p);
     if (it != connections_.end()) {
       for (const auto &conn : it->second) {
@@ -79,8 +80,7 @@ namespace libp2p::network {
     return out;
   }
 
-  ConnectionManager::ConnectionManager(
-      std::shared_ptr<libp2p::event::Bus> bus)
+  ConnectionManager::ConnectionManager(std::shared_ptr<libp2p::event::Bus> bus)
       : bus_(std::move(bus)) {}
 
   void ConnectionManager::collectGarbage() {
@@ -125,6 +125,8 @@ namespace libp2p::network {
         // ignore errors
         (void)conn->close();
       }
+      bus_->getChannel<event::network::OnConnectionClosedChannel>().publish(
+          conn);
     }
 
     closing_connections_to_peer_.reset();
@@ -153,6 +155,9 @@ namespace libp2p::network {
     [[maybe_unused]] auto erased = it->second.erase(conn);
     if (erased == 0) {
       log()->error("inconsistency in onConnectionClosed, connection not found");
+    } else {
+      bus_->getChannel<event::network::OnConnectionClosedChannel>().publish(
+          conn);
     }
 
     if (it->second.empty()) {
@@ -162,4 +167,12 @@ namespace libp2p::network {
     }
   }
 
+  std::vector<PeerId> ConnectionManager::getConnectedPeers() const {
+    return connections_ | std::views::keys
+         | std::ranges::to<std::vector<PeerId>>();
+  }
+
+  size_t ConnectionManager::getConnectedPeerCount() const {
+    return connections_.size();
+  }
 }  // namespace libp2p::network

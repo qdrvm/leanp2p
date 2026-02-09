@@ -227,7 +227,11 @@ namespace libp2p::host {
     /**
      * Get list of protocols that were passed to `listenProtocol`.
      */
-    StreamProtocols getSupportedProtocols() const;
+    [[nodiscard]] StreamProtocols getSupportedProtocols() const;
+
+    [[nodiscard]] std::vector<PeerId> getConnectedPeers() const;
+
+    [[nodiscard]] size_t getConnectedPeerCount() const;
 
    private:
     std::shared_ptr<peer::IdentityManager> idmgr_;

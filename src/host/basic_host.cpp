@@ -238,4 +238,12 @@ namespace libp2p::host {
   StreamProtocols BasicHost::getSupportedProtocols() const {
     return listener_->getSupportedProtocols();
   }
+
+  std::vector<PeerId> BasicHost::getConnectedPeers() const {
+    return connection_manager_->getConnectedPeers();
+  }
+
+  size_t BasicHost::getConnectedPeerCount() const {
+    return connection_manager_->getConnectedPeerCount();
+  }
 }  // namespace libp2p::host

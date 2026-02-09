@@ -14,6 +14,7 @@
 #include <libp2p/peer/peer_info.hpp>
 #include <libp2p/peer/protocol_repository.hpp>
 #include <libp2p/peer/rtt_repository.hpp>
+#include <libp2p/peer/user_agent_repository.hpp>
 
 namespace libp2p::peer {
   /**
@@ -25,7 +26,8 @@ namespace libp2p::peer {
     PeerRepository(std::shared_ptr<AddressRepository> addrRepo,
                    std::shared_ptr<KeyRepository> keyRepo,
                    std::shared_ptr<ProtocolRepository> protocolRepo,
-                   std::shared_ptr<RttRepository> rttRepo);
+                   std::shared_ptr<RttRepository> rttRepo,
+                   std::shared_ptr<UserAgentRepository> uagent_repo);
     /**
      * @brief Getter for an address repository.
      * @return associated instance of an address repository.
@@ -51,10 +53,16 @@ namespace libp2p::peer {
     RttRepository &getRttRepository();
 
     /**
+     * @brief Getter for a user-agent repository.
+     * @return associated instance of a protocol repository.
+     */
+    UserAgentRepository &getUserAgentRepository();
+
+    /**
      * @brief Returns set of peer ids known by this peer repository.
      * @return unordered set of peers
      */
-    std::unordered_set<PeerId> getPeers() const;
+    [[nodiscard]] std::unordered_set<PeerId> getPeers() const;
 
     /**
      * @brief Derive a PeerInfo object from the PeerId; can be useful, for
@@ -63,12 +71,13 @@ namespace libp2p::peer {
      * @param peer_id to get PeerInfo for
      * @return PeerInfo
      */
-    PeerInfo getPeerInfo(const PeerId &peer_id) const;
+    [[nodiscard]] PeerInfo getPeerInfo(const PeerId &peer_id) const;
 
    private:
     std::shared_ptr<AddressRepository> addr_;
     std::shared_ptr<KeyRepository> key_;
     std::shared_ptr<ProtocolRepository> proto_;
     std::shared_ptr<RttRepository> rtt_;
+    std::shared_ptr<UserAgentRepository> uagent_;
   };
 }  // namespace libp2p::peer
