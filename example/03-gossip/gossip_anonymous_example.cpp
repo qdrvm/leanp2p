@@ -77,8 +77,7 @@ int main(int argc, char **argv) {
       libp2p::injector::useTransportAdaptors<
           libp2p::transport::QuicTransport>());
 
-  auto io_context =
-      injector.create<std::shared_ptr<boost::asio::io_context>>();
+  auto io_context = injector.create<std::shared_ptr<boost::asio::io_context>>();
   auto host = injector.create<std::shared_ptr<libp2p::host::BasicHost>>();
   auto gossip =
       injector.create<std::shared_ptr<libp2p::protocol::gossip::Gossip>>();
@@ -99,7 +98,7 @@ int main(int argc, char **argv) {
   });
 
   // Subscribe to topic
-  auto topic = gossip->subscribe("example");
+  auto topic = gossip->subscribe("example", false);
 
   // Receiver task
   libp2p::coroSpawn(*io_context, [&]() -> libp2p::Coro<void> {
@@ -133,4 +132,3 @@ int main(int argc, char **argv) {
   io_context->run();
   return EXIT_SUCCESS;
 }
-

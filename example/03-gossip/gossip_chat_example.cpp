@@ -95,7 +95,7 @@ int main(int argc, char **argv) {
   });
 
   // Subscribe to a simple topic named "example".
-  auto topic = gossip->subscribe("example");
+  auto topic = gossip->subscribe("example", false);
 
   // Receiver task: prints all messages arriving on the topic.
   libp2p::coroSpawn(*io_context, [&]() -> libp2p::Coro<void> {

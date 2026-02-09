@@ -11,6 +11,7 @@
 #include <libp2p/peer/stream_protocols.hpp>
 #include <qtils/bytes_std_hash.hpp>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace libp2p::protocol::gossip {
   using TopicHash = Bytes;
@@ -51,6 +52,14 @@ namespace libp2p::protocol::gossip {
     std::optional<Bytes> signature;
 
     std::optional<PeerId> received_from;
+    std::optional<MessageId> message_id;
+    std::unordered_set<PeerId> duplicate_peers;
+  };
+
+  enum class ValidationResult {
+    Accept,
+    Reject,
+    Ignore,
   };
 
   using MessageIdFn = std::function<MessageId(const Message &)>;

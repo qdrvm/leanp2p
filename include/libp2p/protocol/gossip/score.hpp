@@ -19,6 +19,22 @@ namespace libp2p::protocol::gossip::score {
 
   constexpr std::chrono::seconds kTimeCacheDuration{120};
 
+  /// The reason a Gossipsub message has been rejected.
+  enum class RejectReason {
+    /// The message failed the configured validation during decoding.
+    ValidationError,
+    /// The message source is us.
+    SelfOrigin,
+    /// The peer that sent the message was blacklisted.
+    BlackListedPeer,
+    /// The source (from field) of the message was blacklisted.
+    BlackListedSource,
+    /// The validation was ignored.
+    ValidationIgnored,
+    /// The validation failed.
+    ValidationFailed,
+  };
+
   struct DeliveryStatusUnknown {};
   struct DeliveryStatusValid {
     Time time;
@@ -223,6 +239,51 @@ namespace libp2p::protocol::gossip::score {
         if (peer != from) {
           mark_duplicate_message_delivery(peer, topic_hash, std::nullopt);
         }
+      }
+    }
+
+    void rejectInvalidMessage(const PeerId &from, const TopicHash &topic_hash) {
+      markInvalidMessageDelivery(from, topic_hash);
+    }
+
+    // Reject a message.
+    void rejectMessage(const PeerId &from,
+                       const MessageId &message_id,
+                       const TopicHash &topic_hash,
+                       RejectReason reason) {
+      // these messages are not tracked, but the peer is penalized as they are
+      // invalid
+      if (reason == RejectReason::ValidationError
+          or reason == RejectReason::SelfOrigin) {
+        rejectInvalidMessage(from, topic_hash);
+        return;
+      }
+      // we ignore those messages, so do nothing.
+      if (reason == RejectReason::BlackListedPeer
+          or reason == RejectReason::BlackListedSource) {
+        return;
+      }
+      auto &record = deliveries_.getOrDefault(message_id);
+      // Multiple peers can now reject the same message as we track which peers
+      // send us the message. If we have already updated the status, return.
+      if (not std::holds_alternative<DeliveryStatusUnknown>(record.status)) {
+        return;
+      }
+      if (reason == RejectReason::ValidationIgnored) {
+        // we were explicitly instructed by the validator to ignore the message
+        // but not penalize the peer
+        record.status = DeliveryStatusIgnored{};
+        record.peers.clear();
+        return;
+      }
+      // mark the message as invalid and penalize peers that have already
+      // forwarded it.
+      record.status = DeliveryStatusInvalid{};
+      // release the delivery time tracking map to free some memory early
+      auto peers = std::exchange(record.peers, {});
+      markInvalidMessageDelivery(from, topic_hash);
+      for (auto &peer_id : peers) {
+        markInvalidMessageDelivery(peer_id, topic_hash);
       }
     }
 
