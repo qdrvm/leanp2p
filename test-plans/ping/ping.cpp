@@ -225,6 +225,7 @@ int main(){
 
                 io_context->run();
                 redisFree(ctx);
+                return 0;
             }
             else{
                 log->error("Failed to wait for listener to be ready - unexpected reply type: {} (elements: {})", 
@@ -269,7 +270,7 @@ int main(){
 
                 log->info("Listener exiting");
                 redisFree(ctx);
-                return 1;
+                return 0;
             }
             else{
                 log->error("Failed to push address to redis - unexpected reply type: {}", replyListenAddr->type);
