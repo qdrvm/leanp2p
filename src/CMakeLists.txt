@@ -41,6 +41,7 @@ target_link_libraries(libp2p
         p2p_inmem_address_repository
         p2p_inmem_key_repository
         p2p_inmem_protocol_repository
+        p2p_inmem_rtt_repository
         p2p_inmem_user_agent_repository
         p2p_key_validator
         p2p_listener_manager
