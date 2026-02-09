@@ -109,9 +109,16 @@ int main(){
     std::string ip = getenv_opt("LISTENER_IP").value_or("0.0.0.0");
     std::string redisAddr = getenv_opt("REDIS_ADDR").value_or("redis:6379");
     auto testKey = getenv_opt("TEST_KEY");
-    auto debugStr = getenv_opt("DEBUG");
+    std::string debugStr = getenv_opt("DEBUG").value_or("false");
 
     int testTimeoutSeconds = 300;
+
+    bool isDialer = *isDialerStr == "true";
+    bool debug = debugStr == "true";
+
+    if(!debug){
+        log->setLevel(libp2p::log::Level::ERROR);
+    }
 
     int redisPort = parse_redis_port(redisAddr, log);
     std::string redisHost = parse_redis_host(redisAddr, log);
@@ -123,13 +130,6 @@ int main(){
     if(!wait_for_redis(ctx, testTimeoutSeconds)){
         redisFree(ctx);
         return 1;
-    }
-
-    bool isDialer = *isDialerStr == "true";
-    bool debug = *debugStr == "true";
-
-    if(!debug){
-        log->setLevel(libp2p::log::Level::ERROR);
     }
 
     unsigned int random_seed = static_cast<unsigned int>(std::random_device{}());
@@ -285,5 +285,5 @@ int main(){
         }
     }
 
-    return 0;
+    return 1;
 }
