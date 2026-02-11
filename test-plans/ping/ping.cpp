@@ -18,6 +18,20 @@
 #include <fmt/format.h>
 #include <libp2p/connection/stream.hpp>
 #include <libp2p/common/weak_macro.hpp>
+#include <vector>
+
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <iphlpapi.h>
+#pragma comment(lib, "iphlpapi.lib")
+#pragma comment(lib, "ws2_32.lib")
+#else
+#include <ifaddrs.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <net/if.h>
+#endif
 
 std::optional<std::string> getenv_opt(const char* name){
     if(const char* v = std::getenv(name)){
@@ -98,6 +112,64 @@ std::string parse_redis_host(const std::string &redisAddr, libp2p::log::Logger l
     return host;
 }
 
+std::optional<std::string> get_first_network_ip(libp2p::log::Logger log) {
+#ifdef _WIN32
+    // Windows implementation
+    ULONG bufferSize = 15000;
+    PIP_ADAPTER_ADDRESSES addresses = (IP_ADAPTER_ADDRESSES*)malloc(bufferSize);
+    
+    if (GetAdaptersAddresses(AF_INET, GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER,
+                            NULL, addresses, &bufferSize) == NO_ERROR) {
+        for (PIP_ADAPTER_ADDRESSES addr = addresses; addr != NULL; addr = addr->Next) {
+            if (addr->OperStatus != IfOperStatusUp) continue;
+            if (addr->IfType == IF_TYPE_SOFTWARE_LOOPBACK) continue;
+            
+            for (PIP_ADAPTER_UNICAST_ADDRESS unicast = addr->FirstUnicastAddress; unicast != NULL; unicast = unicast->Next) {
+                if (unicast->Address.lpSockaddr->sa_family == AF_INET) {
+                    struct sockaddr_in* sockaddr = (struct sockaddr_in*)unicast->Address.lpSockaddr;
+                    char ip[INET_ADDRSTRLEN];
+                    inet_ntop(AF_INET, &(sockaddr->sin_addr), ip, INET_ADDRSTRLEN);
+                    log->info("Found network interface with IP {}", ip);
+                    free(addresses);
+                    return std::string(ip);
+                }
+            }
+        }
+    }
+    free(addresses);
+    return std::nullopt;
+#else
+    // Unix/Linux implementation
+    struct ifaddrs *ifaddr, *ifa;
+    
+    if (getifaddrs(&ifaddr) == -1) {
+        log->error("getifaddrs failed");
+        return std::nullopt;
+    }
+    
+    for (ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next) {
+        if (ifa->ifa_addr == nullptr) continue;
+        
+        // Skip loopback and non-running interfaces
+        if ((ifa->ifa_flags & IFF_LOOPBACK) || !(ifa->ifa_flags & IFF_UP)) continue;
+        
+        // Only handle IPv4
+        if (ifa->ifa_addr->sa_family == AF_INET) {
+            struct sockaddr_in *addr = (struct sockaddr_in *)ifa->ifa_addr;
+            char ip[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &(addr->sin_addr), ip, INET_ADDRSTRLEN);
+            
+            log->info("Found network interface {} with IP {}", ifa->ifa_name, ip);
+            freeifaddrs(ifaddr);
+            return std::string(ip);
+        }
+    }
+    
+    freeifaddrs(ifaddr);
+    return std::nullopt;
+#endif
+}
+
 int main(){
     libp2p::simpleLoggingSystem();
     auto log = libp2p::log::createLogger("Ping");
@@ -106,7 +178,7 @@ int main(){
     auto muxer = getenv_opt("MUXER"); //There for future use as skipped when transport=quic-v1
     auto secureChannel = getenv_opt("SECURE_CHANNEL"); //There for future use as skipped when transport=quic-v1
     auto isDialerStr = getenv_opt("IS_DIALER");
-    std::string ip = getenv_opt("LISTENER_IP").value_or("0.0.0.0");
+    std::string listener_ip = getenv_opt("LISTENER_IP").value_or("0.0.0.0"); // When we create sample peer, it binds on 0.0.0.0 by default
     std::string redisAddr = getenv_opt("REDIS_ADDR").value_or("redis:6379");
     auto testKey = getenv_opt("TEST_KEY");
     std::string debugStr = getenv_opt("DEBUG").value_or("false");
@@ -120,6 +192,19 @@ int main(){
         log->setLevel(libp2p::log::Level::ERROR);
     }
 
+    // Detect actual network IP if listener_ip is 0.0.0.0
+    // This has to be done manually right now
+    std::string ip = listener_ip;
+    if (listener_ip == "0.0.0.0") {
+        auto detected_ip = get_first_network_ip(log);
+        if (detected_ip.has_value()) {
+            ip = detected_ip.value();
+            log->info("Using detected network IP: {}", ip);
+        } else {
+            log->warn("Could not detect network IP, using 0.0.0.0");
+        }
+    }
+    
     int redisPort = parse_redis_port(redisAddr, log);
     std::string redisHost = parse_redis_host(redisAddr, log);
     std::string redisKey = fmt::format("{}_listener_multiaddr", *testKey);
