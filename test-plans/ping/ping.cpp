@@ -19,19 +19,10 @@
 #include <libp2p/connection/stream.hpp>
 #include <libp2p/common/weak_macro.hpp>
 #include <vector>
-
-#ifdef _WIN32
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#include <iphlpapi.h>
-#pragma comment(lib, "iphlpapi.lib")
-#pragma comment(lib, "ws2_32.lib")
-#else
 #include <ifaddrs.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <net/if.h>
-#endif
 
 std::optional<std::string> getenv_opt(const char* name){
     if(const char* v = std::getenv(name)){
@@ -113,33 +104,6 @@ std::string parse_redis_host(const std::string &redisAddr, libp2p::log::Logger l
 }
 
 std::optional<std::string> get_first_network_ip(libp2p::log::Logger log) {
-#ifdef _WIN32
-    // Windows implementation
-    ULONG bufferSize = 15000;
-    PIP_ADAPTER_ADDRESSES addresses = (IP_ADAPTER_ADDRESSES*)malloc(bufferSize);
-    
-    if (GetAdaptersAddresses(AF_INET, GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER,
-                            NULL, addresses, &bufferSize) == NO_ERROR) {
-        for (PIP_ADAPTER_ADDRESSES addr = addresses; addr != NULL; addr = addr->Next) {
-            if (addr->OperStatus != IfOperStatusUp) continue;
-            if (addr->IfType == IF_TYPE_SOFTWARE_LOOPBACK) continue;
-            
-            for (PIP_ADAPTER_UNICAST_ADDRESS unicast = addr->FirstUnicastAddress; unicast != NULL; unicast = unicast->Next) {
-                if (unicast->Address.lpSockaddr->sa_family == AF_INET) {
-                    struct sockaddr_in* sockaddr = (struct sockaddr_in*)unicast->Address.lpSockaddr;
-                    char ip[INET_ADDRSTRLEN];
-                    inet_ntop(AF_INET, &(sockaddr->sin_addr), ip, INET_ADDRSTRLEN);
-                    log->info("Found network interface with IP {}", ip);
-                    free(addresses);
-                    return std::string(ip);
-                }
-            }
-        }
-    }
-    free(addresses);
-    return std::nullopt;
-#else
-    // Unix/Linux implementation
     struct ifaddrs *ifaddr, *ifa;
     
     if (getifaddrs(&ifaddr) == -1) {
@@ -150,10 +114,8 @@ std::optional<std::string> get_first_network_ip(libp2p::log::Logger log) {
     for (ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next) {
         if (ifa->ifa_addr == nullptr) continue;
         
-        // Skip loopback and non-running interfaces
         if ((ifa->ifa_flags & IFF_LOOPBACK) || !(ifa->ifa_flags & IFF_UP)) continue;
         
-        // Only handle IPv4
         if (ifa->ifa_addr->sa_family == AF_INET) {
             struct sockaddr_in *addr = (struct sockaddr_in *)ifa->ifa_addr;
             char ip[INET_ADDRSTRLEN];
@@ -167,7 +129,6 @@ std::optional<std::string> get_first_network_ip(libp2p::log::Logger log) {
     
     freeifaddrs(ifaddr);
     return std::nullopt;
-#endif
 }
 
 int main(){
@@ -295,12 +256,16 @@ int main(){
                             auto handShakeEnd = std::chrono::steady_clock::now();
                             log->info("Ping successful");
                             auto ping_rtt = ping_res.value();
-                            auto handShakePlusOneRTT = std::chrono::duration_cast<std::chrono::milliseconds>(handShakeEnd - handShakeStart);
+                            
+                            auto handShakePlusOneRTT_us = std::chrono::duration_cast<std::chrono::microseconds>(handShakeEnd - handShakeStart);
+                            auto ping_rtt_us = std::chrono::duration_cast<std::chrono::microseconds>(ping_rtt);
+                            
+                            double handShakePlusOneRTT_ms = handShakePlusOneRTT_us.count() / 1000.0;
+                            double ping_rtt_ms = ping_rtt_us.count() / 1000.0;
 
-                            // Printing out results in stdout
                             std::cout << "latency:\n";
-                            std::cout << fmt::format("  handshake_plus_one_rtt: {}\n", handShakePlusOneRTT.count());
-                            std::cout << fmt::format("  ping_rtt: {}\n", ping_rtt.count());
+                            std::cout << fmt::format("  handshake_plus_one_rtt: {}\n", handShakePlusOneRTT_ms);
+                            std::cout << fmt::format("  ping_rtt: {}\n", ping_rtt_ms);
                             std::cout << "  unit: ms\n";
 
                             io_context->stop();
