@@ -205,7 +205,7 @@ int main(){
     auto ping = std::make_shared<libp2p::protocol::Ping>(io_context, host, random, pingConfig);
 
     if (not host->listen(sample_peer.listen)) {
-        std::println("Error listening on {}", sample_peer.listen);
+        log->error("Error listening on {}", sample_peer.listen);
         return 1;
     }
 
@@ -233,12 +233,14 @@ int main(){
                 libp2p::peer::PeerInfo connect_info = {peer_id.value(), {address}};
                 freeReplyObject(replyListenAddr);
 
+                int exitStatus = 0;
                 libp2p::coroSpawn(*io_context, [&]() -> libp2p::Coro<void> {
                     log->info("Connecting to {}", connect_info.addresses.at(0));
                     auto handShakeStart = std::chrono::steady_clock::now();
                     auto connect_res = (co_await host->connect(connect_info));
                     if (not connect_res.has_value()) {
                         log->error("Failed to connect to peer");
+                        exitStatus = 1;
                         io_context->stop();
                         co_return;
                     }
@@ -249,6 +251,7 @@ int main(){
                         auto ping_res = (co_await ping->ping(connection, std::chrono::seconds(testTimeoutSeconds)));
                         if(not ping_res.has_value()){
                             log->error("Ping failed");
+                            exitStatus = 1;
                             io_context->stop();
                             co_return;
                         }
@@ -275,7 +278,7 @@ int main(){
 
                 io_context->run();
                 redisFree(ctx);
-                return 0;
+                return exitStatus;
             }
             else{
                 log->error("Failed to wait for listener to be ready - unexpected reply type: {} (elements: {})", 
