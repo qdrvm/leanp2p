@@ -1,9 +1,9 @@
 vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
 vcpkg_from_github(
   OUT_SOURCE_PATH SOURCE_PATH
-  REPO qdrvm/soralog
-  REF refs/tags/v0.2.5
-  SHA512 47375cc61c78ebc4119781bf19ce3b92c4a5a40ed4dc77c0156ac0750df1e4d13455bf6f60d9ea2f0b7bf7dda75423eed320edce453617ab06d6c1c9a8a8843c
+  REPO xDimon/soralog
+  REF refs/tags/v0.2.6
+  SHA512 8ad2698cf029b70e909d7ace1e500957dceecc80e2331cecd1d66e775bb19456c81957e0c375ce81010f0aa5c8b6f13dc38fbf25c8f8547833548e350f6ae3f3
 )
 vcpkg_cmake_configure(SOURCE_PATH "${SOURCE_PATH}")
 vcpkg_cmake_install()
