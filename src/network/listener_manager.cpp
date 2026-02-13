@@ -109,6 +109,7 @@ namespace libp2p::network {
     for (auto it = begin; it != end;) {
       auto r = it->second->listen(it->first);
       if (!r) {
+        SL_WARN(log(), "Can't listen on {}", it->first, r.error());
         // can not start listening on this multiaddr, remove listener
         it = listeners_.erase(it);
       } else {
@@ -162,6 +163,13 @@ namespace libp2p::network {
         this->onConnection(std::move(item));
       }
     });
+    if (started) {
+      auto r = listener->listen(ma);
+      if (not r.has_value()) {
+        SL_WARN(log(), "Can't listen on {}: {}", ma, r.error());
+        return r.error();
+      }
+    }
 
     listeners_.insert({ma, std::move(listener)});
 
