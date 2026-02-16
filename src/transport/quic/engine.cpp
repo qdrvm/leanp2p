@@ -19,6 +19,34 @@
 #include <qtils/option_take.hpp>
 
 namespace libp2p::transport::lsquic {
+  inline std::shared_ptr<SendDatagramFuture> nextDatagram(ConnCtx *conn_ctx) {
+    while (not conn_ctx->datagram_send_queue.empty()) {
+      auto &weak_future = conn_ctx->datagram_send_queue.front();
+      if (auto future = weak_future.lock()) {
+        return future;
+      }
+      conn_ctx->datagram_send_queue.pop_front();
+    }
+    return nullptr;
+  }
+
+  class SendDatagramFuture : public PollFuture {
+   public:
+    SendDatagramFuture(qtils::ByteVec message) : message{std::move(message)} {}
+
+    bool poll(PollWaker waker) override {
+      if (completed) {
+        return true;
+      }
+      last_waker.emplace(std::move(waker));
+      return false;
+    }
+
+    qtils::ByteVec message;
+    bool completed = false;
+    std::optional<PollWaker> last_waker;
+  };
+
   inline boost::asio::ip::udp::endpoint endpointFrom(const sockaddr *raw) {
     boost::asio::ip::udp::endpoint endpoint;
     size_t size = 0;
@@ -36,12 +64,14 @@ namespace libp2p::transport::lsquic {
   Engine::Engine(std::shared_ptr<boost::asio::io_context> io_context,
                  std::shared_ptr<boost::asio::ssl::context> ssl_context,
                  const muxer::MuxedConnectionConfig &mux_config,
+                 OnDatagramConfigPtr on_datagram_config,
                  PeerId local_peer,
                  std::shared_ptr<crypto::marshaller::KeyMarshaller> key_codec,
                  boost::asio::ip::udp::socket &&socket,
                  bool client)
       : io_context_{std::move(io_context)},
         ssl_context_{std::move(ssl_context)},
+        on_datagram_config_{std::move(on_datagram_config)},
         local_peer_{std::move(local_peer)},
         key_codec_{std::move(key_codec)},
         socket_{std::move(socket)},
@@ -71,6 +101,7 @@ namespace libp2p::transport::lsquic {
     settings.es_idle_timeout = std::chrono::duration_cast<std::chrono::seconds>(
                                    mux_config.no_streams_interval)
                                    .count();
+    settings.es_datagrams = on_datagram_config_->enable_datagram ? 1 : 0;
 
     static lsquic_stream_if stream_if{};
     stream_if.on_new_conn = +[](void *void_self, lsquic_conn_t *conn) {
@@ -196,6 +227,51 @@ namespace libp2p::transport::lsquic {
             writing.value()();
           }
         };
+    stream_if.on_datagram = +[](lsquic_conn_t *conn,
+                                const void *buffer,
+                                size_t buffer_size) {
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+      auto conn_ctx = reinterpret_cast<ConnCtx *>(lsquic_conn_get_ctx(conn));
+      auto &on_datagram = conn_ctx->engine->on_datagram_config_->on_datagram;
+      if (not on_datagram) {
+        return;
+      }
+      auto connection = conn_ctx->conn.lock();
+      if (not connection) {
+        return;
+      }
+      qtils::ByteVec message{
+          std::span{static_cast<const uint8_t *>(buffer), buffer_size}};
+      boost::asio::post(*conn_ctx->engine->io_context_,
+                        [on_datagram,
+                         connection{std::move(connection)},
+                         message{std::move(message)}] {
+                          on_datagram(std::move(connection),
+                                      std::move(message));
+                        });
+    };
+    stream_if.on_dg_write = +[](lsquic_conn_t *conn,
+                                void *buffer,
+                                size_t buffer_size) {
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+      auto conn_ctx = reinterpret_cast<ConnCtx *>(lsquic_conn_get_ctx(conn));
+      ssize_t result = -1;
+      if (auto future = nextDatagram(conn_ctx)) {
+        conn_ctx->datagram_send_queue.pop_front();
+        if (buffer_size < future->message.size()) {
+          throw std::logic_error{"stream_if.on_dg_write buffer is too small"};
+        }
+        memcpy(buffer, future->message.data(), future->message.size());
+        result = future->message.size();
+      }
+      if (auto future = nextDatagram(conn_ctx)) {
+        lsquic_conn_set_min_datagram_size(conn_ctx->ls_conn,
+                                          future->message.size());
+      } else {
+        lsquic_conn_want_datagram_write(conn_ctx->ls_conn, 0);
+      }
+      return result;
+    };
 
     lsquic_engine_api api{};
     api.ea_settings = &settings;
@@ -307,6 +383,17 @@ namespace libp2p::transport::lsquic {
       return QuicError::CANT_OPEN_STREAM;
     }
     return stream;
+  }
+
+  std::shared_ptr<PollFuture> Engine::sendDatagram(ConnCtx *conn_ctx,
+                                                   BytesIn message) {
+    auto future = std::make_shared<SendDatagramFuture>(message);
+    conn_ctx->datagram_send_queue.emplace_back(future);
+    if (nextDatagram(conn_ctx) == future) {
+      lsquic_conn_set_min_datagram_size(conn_ctx->ls_conn, message.size());
+      lsquic_conn_want_datagram_write(conn_ctx->ls_conn, 1);
+    }
+    return future;
   }
 
   ConnectionPtrCoroOutcome Engine::asyncAccept() {

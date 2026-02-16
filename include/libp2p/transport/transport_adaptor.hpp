@@ -13,6 +13,7 @@
 #include <libp2p/coro/coro.hpp>
 
 #include <libp2p/connection/capable_connection.hpp>
+#include <libp2p/connection/on_datagram.hpp>
 #include <libp2p/multi/multiaddress.hpp>
 #include <libp2p/peer/peer_id.hpp>
 #include <libp2p/transport/transport_listener.hpp>

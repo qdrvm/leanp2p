@@ -11,6 +11,7 @@
 #include <boost/asio/ip/udp.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <deque>
+#include <libp2p/connection/on_datagram.hpp>
 #include <libp2p/coro/channel.hpp>
 #include <libp2p/coro/coro.hpp>
 #include <libp2p/coro/handler.hpp>
@@ -48,6 +49,7 @@ namespace libp2p::transport {
 
 namespace libp2p::transport::lsquic {
   class Engine;
+  class SendDatagramFuture;
   struct ConnCtx;
   struct StreamCtx;
 
@@ -70,6 +72,7 @@ namespace libp2p::transport::lsquic {
     std::optional<Connecting> connecting{};
     std::optional<std::shared_ptr<connection::QuicStream>> new_stream{};
     std::weak_ptr<QuicConnection> conn{};
+    std::deque<std::weak_ptr<SendDatagramFuture>> datagram_send_queue;
   };
 
   /**
@@ -95,6 +98,7 @@ namespace libp2p::transport::lsquic {
     Engine(std::shared_ptr<boost::asio::io_context> io_context,
            std::shared_ptr<boost::asio::ssl::context> ssl_context,
            const muxer::MuxedConnectionConfig &mux_config,
+           OnDatagramConfigPtr on_datagram_config,
            PeerId local_peer,
            std::shared_ptr<crypto::marshaller::KeyMarshaller> key_codec,
            boost::asio::ip::udp::socket &&socket,
@@ -115,6 +119,8 @@ namespace libp2p::transport::lsquic {
         const boost::asio::ip::udp::endpoint &remote, const PeerId &peer);
     outcome::result<std::shared_ptr<connection::QuicStream>> newStream(
         ConnCtx *conn_ctx);
+    std::shared_ptr<PollFuture> sendDatagram(ConnCtx *conn_ctx,
+                                             BytesIn message);
     ConnectionPtrCoroOutcome asyncAccept();
     void wantProcess();
     void wantFlush(StreamCtx *stream_ctx);
@@ -126,6 +132,7 @@ namespace libp2p::transport::lsquic {
 
     std::shared_ptr<boost::asio::io_context> io_context_;
     std::shared_ptr<boost::asio::ssl::context> ssl_context_;
+    OnDatagramConfigPtr on_datagram_config_;
     PeerId local_peer_;
     std::shared_ptr<crypto::marshaller::KeyMarshaller> key_codec_;
     boost::asio::ip::udp::socket socket_;
