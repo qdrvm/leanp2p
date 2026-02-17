@@ -18,7 +18,7 @@ find_package(libsecp256k1 CONFIG REQUIRED)
 find_package(Protobuf CONFIG REQUIRED)
 find_package(tsl_hat_trie CONFIG REQUIRED)
 find_package(Boost.DI CONFIG REQUIRED)
-if(ENABLE_REDIS)
+if(ENABLE_TEST_PLANS)
     find_package(hiredis CONFIG REQUIRED)
 endif()
 
@@ -35,6 +35,6 @@ add_subdirectory(src)
 add_subdirectory(example)
 
 # Test-plans
-if(ENABLE_REDIS)
+if(ENABLE_TEST_PLANS)
     add_subdirectory(test-plans)
 endif()
