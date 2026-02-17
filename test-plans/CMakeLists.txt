@@ -1,4 +1,4 @@
-add_subdirectory(ping)
+add_subdirectory(transport_interop)
 
 add_library(test_plans_common
   common.cpp
