@@ -7,8 +7,7 @@
             "binaryDir": "${sourceDir}/build",
             "cacheVariables": {
                 "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
-                "CMAKE_BUILD_TYPE": "Debug",
-                "ENABLE_REDIS": "OFF"
+                "CMAKE_BUILD_TYPE": "Debug"
             }
         },
         {
