@@ -263,6 +263,11 @@ namespace libp2p::transport::lsquic {
         }
         memcpy(buffer, future->message.data(), future->message.size());
         result = future->message.size();
+        future->completed = true;
+        if (future->last_waker) {
+          boost::asio::post(*conn_ctx->engine->io_context_,
+                            *future->last_waker);
+        }
       }
       if (auto future = nextDatagram(conn_ctx)) {
         lsquic_conn_set_min_datagram_size(conn_ctx->ls_conn,
