@@ -7,6 +7,7 @@
 add_subdirectory(address_repository)
 add_subdirectory(key_repository)
 add_subdirectory(protocol_repository)
+add_subdirectory(user_agent_repository)
 
 libp2p_add_library(p2p_peer_errors
     errors.cpp

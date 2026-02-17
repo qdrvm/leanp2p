@@ -7,6 +7,7 @@
 #include <libp2p/network/connection_manager.hpp>
 
 #include <algorithm>
+#include <ranges>
 
 namespace libp2p::network {
 
@@ -164,6 +165,11 @@ namespace libp2p::network {
       bus_->getChannel<event::network::OnPeerDisconnectedChannel>().publish(
           peer_id);
     }
+  }
+
+  std::vector<PeerId> ConnectionManager::getConnectedPeers() const {
+    return connections_ | std::views::keys
+         | std::ranges::to<std::vector<PeerId>>();
   }
 
   size_t ConnectionManager::getConnectedPeerCount() const {

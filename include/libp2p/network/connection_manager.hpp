@@ -58,7 +58,9 @@ namespace libp2p::network {
         const peer::PeerId &peer_id,
         const std::shared_ptr<connection::CapableConnection> &conn);
 
-    size_t getConnectedPeerCount() const;
+    [[nodiscard]] std::vector<PeerId> getConnectedPeers() const;
+
+    [[nodiscard]] size_t getConnectedPeerCount() const;
 
    private:
     std::unordered_map<peer::PeerId, std::unordered_set<ConnectionSPtr>>
