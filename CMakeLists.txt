@@ -5,6 +5,8 @@ project(leanp2p)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+option(ENABLE_TEST_PLANS "Enable test-plans support" OFF)
+
 find_package(Boost CONFIG REQUIRED filesystem random beast program_options)
 find_package(OpenSSL CONFIG REQUIRED)
 find_package(soralog CONFIG REQUIRED)
@@ -16,6 +18,9 @@ find_package(libsecp256k1 CONFIG REQUIRED)
 find_package(Protobuf CONFIG REQUIRED)
 find_package(tsl_hat_trie CONFIG REQUIRED)
 find_package(Boost.DI CONFIG REQUIRED)
+if(ENABLE_TEST_PLANS)
+    find_package(hiredis CONFIG REQUIRED)
+endif()
 
 include(cmake/functions.cmake)
 include(cmake/install.cmake)
@@ -28,3 +33,8 @@ add_subdirectory(src)
 
 # Examples
 add_subdirectory(example)
+
+# Test-plans
+if(ENABLE_TEST_PLANS)
+    add_subdirectory(test-plans)
+endif()
