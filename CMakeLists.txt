@@ -5,7 +5,7 @@ project(leanp2p)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-option(ENABLE_REDIS "Enable Redis support" OFF)
+option(ENABLE_TEST_PLANS "Enable test-plans support" OFF)
 
 find_package(Boost CONFIG REQUIRED filesystem random beast program_options)
 find_package(OpenSSL CONFIG REQUIRED)
