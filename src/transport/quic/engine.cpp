@@ -264,9 +264,8 @@ namespace libp2p::transport::lsquic {
         memcpy(buffer, future->message.data(), future->message.size());
         result = future->message.size();
         future->completed = true;
-        if (future->last_waker) {
-          boost::asio::post(*conn_ctx->engine->io_context_,
-                            *future->last_waker);
+        if (auto waker = qtils::optionTake(future->last_waker)) {
+          boost::asio::post(*conn_ctx->engine->io_context_, *waker);
         }
       }
       if (auto future = nextDatagram(conn_ctx)) {
