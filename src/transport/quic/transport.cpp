@@ -18,11 +18,13 @@ namespace libp2p::transport {
       std::shared_ptr<boost::asio::io_context> io_context,
       const security::SslContext &ssl_context,
       const muxer::MuxedConnectionConfig &mux_config,
+      OnDatagramConfigPtr on_datagram_config,
       const peer::IdentityManager &id_mgr,
       std::shared_ptr<crypto::marshaller::KeyMarshaller> key_codec)
       : io_context_{std::move(io_context)},
         ssl_context_{ssl_context.quic},
         mux_config_{mux_config},
+        on_datagram_config_{std::move(on_datagram_config)},
         local_peer_{id_mgr.getId()},
         key_codec_{std::move(key_codec)},
         resolver_{*io_context_} {}
@@ -60,8 +62,12 @@ namespace libp2p::transport {
   }
 
   std::shared_ptr<TransportListener> QuicTransport::createListener() {
-    return std::make_shared<QuicListener>(
-        io_context_, ssl_context_, mux_config_, local_peer_, key_codec_);
+    return std::make_shared<QuicListener>(io_context_,
+                                          ssl_context_,
+                                          mux_config_,
+                                          on_datagram_config_,
+                                          local_peer_,
+                                          key_codec_);
   }
 
   bool QuicTransport::canDial(const Multiaddress &ma) const {
@@ -79,6 +85,7 @@ namespace libp2p::transport {
     return std::make_shared<lsquic::Engine>(io_context_,
                                             ssl_context_,
                                             mux_config_,
+                                            on_datagram_config_,
                                             local_peer_,
                                             key_codec_,
                                             std::move(socket),

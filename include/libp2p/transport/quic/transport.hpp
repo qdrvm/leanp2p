@@ -39,6 +39,7 @@ namespace libp2p::transport {
     QuicTransport(std::shared_ptr<boost::asio::io_context> io_context,
                   const security::SslContext &ssl_context,
                   const muxer::MuxedConnectionConfig &mux_config,
+                  OnDatagramConfigPtr on_datagram_config,
                   const peer::IdentityManager &id_mgr,
                   std::shared_ptr<crypto::marshaller::KeyMarshaller> key_codec);
 
@@ -55,6 +56,7 @@ namespace libp2p::transport {
     std::shared_ptr<boost::asio::io_context> io_context_;
     std::shared_ptr<boost::asio::ssl::context> ssl_context_;
     muxer::MuxedConnectionConfig mux_config_;
+    OnDatagramConfigPtr on_datagram_config_;
     PeerId local_peer_;
     std::shared_ptr<crypto::marshaller::KeyMarshaller> key_codec_;
     boost::asio::ip::udp::resolver resolver_;
