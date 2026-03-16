@@ -13,6 +13,7 @@
 #include <libp2p/peer/peer_id.hpp>
 #include <libp2p/peer/peer_info.hpp>
 #include <libp2p/peer/protocol_repository.hpp>
+#include <libp2p/peer/rtt_repository.hpp>
 #include <libp2p/peer/user_agent_repository.hpp>
 
 namespace libp2p::peer {
@@ -22,9 +23,10 @@ namespace libp2p::peer {
    */
   class PeerRepository {
    public:
-    PeerRepository(std::shared_ptr<AddressRepository> addr_repo,
-                   std::shared_ptr<KeyRepository> key_repo,
-                   std::shared_ptr<ProtocolRepository> protocol_repo,
+    PeerRepository(std::shared_ptr<AddressRepository> addrRepo,
+                   std::shared_ptr<KeyRepository> keyRepo,
+                   std::shared_ptr<ProtocolRepository> protocolRepo,
+                   std::shared_ptr<RttRepository> rttRepo,
                    std::shared_ptr<UserAgentRepository> uagent_repo);
     /**
      * @brief Getter for an address repository.
@@ -43,6 +45,12 @@ namespace libp2p::peer {
      * @return associated instance of a protocol repository.
      */
     ProtocolRepository &getProtocolRepository();
+
+    /**
+     * @brief Getter for an RTT repository.
+     * @return associated instance of an RTT repository.
+     */
+    RttRepository &getRttRepository();
 
     /**
      * @brief Getter for a user-agent repository.
@@ -69,6 +77,7 @@ namespace libp2p::peer {
     std::shared_ptr<AddressRepository> addr_;
     std::shared_ptr<KeyRepository> key_;
     std::shared_ptr<ProtocolRepository> proto_;
+    std::shared_ptr<RttRepository> rtt_;
     std::shared_ptr<UserAgentRepository> uagent_;
   };
 }  // namespace libp2p::peer
