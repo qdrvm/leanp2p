@@ -185,10 +185,10 @@ namespace libp2p::protocol::gossip {
   // Receive next message payload from a subscribed topic (for local consumer).
   CoroOutcome<Bytes> Topic::receive() {
     BOOST_OUTCOME_CO_TRY(auto message, co_await receiveMessage());
-    co_return message.data;
+    co_return message->data;
   }
 
-  CoroOutcome<Message> Topic::receiveMessage() {
+  CoroOutcome<MessagePtr> Topic::receiveMessage() {
     co_return co_await receive_channel_.receive();
   }
 
@@ -461,17 +461,20 @@ namespace libp2p::protocol::gossip {
 
   // Subscribe locally to a topic: create Topic, announce to peers, and seed
   // mesh.
-  std::shared_ptr<Topic> Gossip::subscribe(TopicHash topic_hash) {
-    return getOrCreateTopic(topic_hash, false);
+  std::shared_ptr<Topic> Gossip::subscribe(TopicHash topic_hash,
+                                           bool validate) {
+    return getOrCreateTopic(topic_hash, validate, false);
   }
 
   std::shared_ptr<Topic> Gossip::getOrCreateTopic(const TopicHash &topic_hash,
+                                                  bool validate,
                                                   bool publish_only) {
     auto topic_it = topics_.find(topic_hash);
     if (topic_it == topics_.end()) {
       auto topic = std::make_shared<Topic>(Topic{
           weak_from_this(),
           topic_hash,
+          false,
           publish_only,
           {*io_context_},
           {config_.history_length},
@@ -485,6 +488,9 @@ namespace libp2p::protocol::gossip {
       }
     }
     auto &topic = topic_it->second;
+    if (validate) {
+      topic->validate_ = true;
+    }
     // upgrade publish only topic to subscribed topic
     if (not publish_only and topic->publish_only_) {
       topic->publish_only_ = false;
@@ -517,12 +523,13 @@ namespace libp2p::protocol::gossip {
     return topic;
   }
 
-  std::shared_ptr<Topic> Gossip::subscribe(std::string_view topic_hash) {
-    return subscribe(qtils::ByteVec(qtils::str2byte(topic_hash)));
+  std::shared_ptr<Topic> Gossip::subscribe(std::string_view topic_hash,
+                                           bool validate) {
+    return subscribe(qtils::ByteVec(qtils::str2byte(topic_hash)), validate);
   }
 
   void Gossip::publish(const TopicHash &topic_hash, BytesIn data) {
-    auto topic = getOrCreateTopic(topic_hash, true);
+    auto topic = getOrCreateTopic(topic_hash, false, true);
     publish(*topic, data);
   }
 
@@ -555,12 +562,58 @@ namespace libp2p::protocol::gossip {
       }
     }
 
-    auto message_id = config_.message_id_fn(*message);
+    message->message_id = config_.message_id_fn(*message);
+    auto &message_id = message->message_id.value();
     if (duplicate_cache_.contains(message_id)) {
       return;
     }
     duplicate_cache_.insert(message_id);
-    broadcast(topic, std::nullopt, message_id, message);
+    message_cache_.emplace(message_id,
+                           MessageCacheEntry{
+                               .message = message,
+                               .validated = true,
+                           });
+    topic.history_.add(message_id);
+    broadcast(topic, std::nullopt, message);
+  }
+
+  void Gossip::validate(MessagePtr message, ValidationResult result) {
+    auto topic_it = topics_.find(message->topic);
+    if (topic_it == topics_.end()) {
+      return;
+    }
+    auto &topic = topic_it->second;
+    if (not topic->validate_) {
+      return;
+    }
+    auto &message_id = message->message_id.value();
+    auto cache_it = message_cache_.find(message_id);
+    if (cache_it == message_cache_.end()) {
+      return;
+    }
+    if (cache_it->second.validated) {
+      return;
+    }
+    if (result == ValidationResult::Accept) {
+      cache_it->second.validated = true;
+      broadcast(*topic, message->received_from.value(), message);
+      return;
+    }
+    message_cache_.erase(cache_it);
+    std::optional<score::RejectReason> reject_reason;
+    if (result == ValidationResult::Reject) {
+      reject_reason = score::RejectReason::ValidationFailed;
+    } else if (result == ValidationResult::Ignore) {
+      reject_reason = score::RejectReason::ValidationIgnored;
+    }
+    auto reject = [&](const PeerId &peer_id) {
+      score_.rejectMessage(
+          peer_id, message_id, message->topic, reject_reason.value());
+    };
+    reject(message->received_from.value());
+    for (auto &peer_id : message->duplicate_peers) {
+      reject(peer_id);
+    }
   }
 
   // Inbound RPC handler: subscriptions, publish, and control messages.
@@ -686,15 +739,27 @@ namespace libp2p::protocol::gossip {
         continue;
       }
       auto &topic = topic_it->second;
-      auto message_id = config_.message_id_fn(*message);
+      message->message_id = config_.message_id_fn(*message);
+      auto &message_id = message->message_id.value();
       if (not duplicate_cache_.insert(message_id)) {
         score_.duplicateMessage(peer->peer_id_, message_id, message->topic);
+        auto cache_it = message_cache_.find(message_id);
+        if (cache_it != message_cache_.end()) {
+          cache_it->second.message->duplicate_peers.emplace(peer->peer_id_);
+        }
         continue;
       }
       score_.validateMessage(peer->peer_id_, message_id, message->topic);
-      topic->receive_channel_.send(*message);
-      score_.deliver_message(peer->peer_id_, message_id, message->topic);
-      broadcast(*topic, peer->peer_id_, message_id, message);
+      message_cache_.emplace(message_id,
+                             MessageCacheEntry{
+                                 .message = message,
+                                 .validated = not topic->validate_,
+                             });
+      topic->history_.add(message_id);
+      if (not topic->validate_) {
+        broadcast(*topic, peer->peer_id_, message);
+      }
+      topic->receive_channel_.send(message);
     }
 
     // Handle GRAFT: accept (add to mesh) or PRUNE with backoff.
@@ -801,6 +866,9 @@ namespace libp2p::protocol::gossip {
         auto message_id = qtils::ByteVec(qtils::str2byte(pb_message));
         auto cache_it = message_cache_.find(message_id);
         if (cache_it != message_cache_.end()) {
+          if (not cache_it->second.validated) {
+            continue;
+          }
           auto &count = cache_it->second.iwant[peer->peer_id_];
           ++count;
           if (count > config_.gossip_retransimission) {
@@ -831,10 +899,12 @@ namespace libp2p::protocol::gossip {
   // Fanout to peers with mesh/flood rules and optional IDONTWANT side channel.
   void Gossip::broadcast(Topic &topic,
                          std::optional<PeerId> from,
-                         const MessageId &message_id,
                          const MessagePtr &message) {
-    message_cache_.emplace(message_id, MessageCacheEntry{message});
-    topic.history_.add(message_id);
+    auto &message_id = message->message_id.value();
+    if (message->received_from.has_value()) {
+      score_.deliver_message(
+          message->received_from.value(), message_id, message->topic);
+    }
     gossip_promises_.remove(message_id);
 
     auto publish = not from.has_value();
@@ -857,6 +927,12 @@ namespace libp2p::protocol::gossip {
         return;
       }
       if (message->from == peer->peer_id_) {
+        return;
+      }
+      if (message->received_from == peer->peer_id_) {
+        return;
+      }
+      if (message->duplicate_peers.contains(peer->peer_id_)) {
         return;
       }
       if (score_.below(peer->peer_id_, config_.score.publish_threshold)) {
@@ -1255,6 +1331,10 @@ namespace libp2p::protocol::gossip {
   void Gossip::emit_gossip() {
     for (auto &[topic_hash, topic] : topics_) {
       auto message_ids = topic->history_.get(config_.history_gossip);
+      qtils::retainIf(message_ids, [&](MessageId message_id) {
+        auto cache_it = message_cache_.find(message_id);
+        return cache_it != message_cache_.end() and cache_it->second.validated;
+      });
       if (message_ids.empty()) {
         continue;
       }

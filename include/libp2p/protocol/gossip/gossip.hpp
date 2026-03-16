@@ -119,6 +119,7 @@ namespace libp2p::protocol::gossip {
    */
   struct MessageCacheEntry {
     MessagePtr message;
+    bool validated;
     std::unordered_map<PeerId, size_t> iwant;
   };
 
@@ -147,7 +148,7 @@ namespace libp2p::protocol::gossip {
    public:
     /** Receive next message published to this topic (awaitable). */
     CoroOutcome<Bytes> receive();
-    CoroOutcome<Message> receiveMessage();
+    CoroOutcome<MessagePtr> receiveMessage();
     /** Publish a payload to this topic (signed locally). */
     void publish(BytesIn message);
     /** Count outbound peers currently in the mesh. */
@@ -155,8 +156,9 @@ namespace libp2p::protocol::gossip {
 
     std::weak_ptr<Gossip> weak_gossip_;
     TopicHash topic_hash_;
+    bool validate_ = false;
     bool publish_only_ = false;
-    CoroOutcomeChannel<Message> receive_channel_;
+    CoroOutcomeChannel<MessagePtr> receive_channel_;
     History history_;
     TopicBackoff backoff_;
     std::unordered_set<PeerPtr> peers_;       // all peers subscribed
@@ -260,9 +262,10 @@ namespace libp2p::protocol::gossip {
     void start();
 
     /** Subscribe locally to a topic by hash (creates Topic if new). */
-    std::shared_ptr<Topic> subscribe(TopicHash topic_hash);
+    std::shared_ptr<Topic> subscribe(TopicHash topic_hash, bool validate);
     /** Subscribe locally to a topic by string name. */
-    std::shared_ptr<Topic> subscribe(std::string_view topic_hash);
+    std::shared_ptr<Topic> subscribe(std::string_view topic_hash,
+                                     bool validate);
 
     /**
      * Publish message to topic.
@@ -273,13 +276,14 @@ namespace libp2p::protocol::gossip {
     /** Publish a payload to a topic (signed, deduped, broadcast). */
     void publish(Topic &topic, BytesIn data);
 
+    void validate(MessagePtr message, ValidationResult result);
+
     /**
      * Broadcast a message to peers following mesh/flood rules and optional
      * IDONTWANT side channel.
      */
     void broadcast(Topic &topic,
                    std::optional<PeerId> from,
-                   const MessageId &message_id,
                    const MessagePtr &message);
 
     /** Decode and process an inbound RPC frame from a peer. */
@@ -328,6 +332,7 @@ namespace libp2p::protocol::gossip {
                       const gossipsub::pb::RPC &pb_message);
 
     std::shared_ptr<Topic> getOrCreateTopic(const TopicHash &topic_hash,
+                                            bool validate,
                                             bool publish_only);
 
     // Dependencies and state
