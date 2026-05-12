@@ -13,6 +13,7 @@ libp2p_add_library(p2p_gossip
     )
 target_link_libraries(p2p_gossip
     Boost::boost
+    p2p_basic_host
     p2p_gossip_proto
     p2p_logger
     )
