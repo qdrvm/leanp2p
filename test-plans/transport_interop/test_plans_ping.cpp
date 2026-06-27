@@ -7,6 +7,7 @@
 #include <libp2p/transport/quic/transport.hpp>
 #include <random>
 #include "../common.hpp"
+#include "libp2p/crypto/random_generator.hpp"
 
 int main() {
   setlinebuf(stdout);
@@ -63,6 +64,7 @@ int main() {
 
   std::shared_ptr<boost::asio::io_context> io_context;
   std::shared_ptr<libp2p::host::BasicHost> host;
+  std::shared_ptr<libp2p::crypto::random::CSPRNG> random;
   std::shared_ptr<libp2p::protocol::Ping> ping;
   std::shared_ptr<void> injector_lifetime;
   if (*transport == "quic-v1") {
@@ -78,6 +80,8 @@ int main() {
 
     io_context = injector->create<std::shared_ptr<boost::asio::io_context>>();
     host = injector->create<std::shared_ptr<libp2p::host::BasicHost>>();
+    random =
+        injector->create<std::shared_ptr<libp2p::crypto::random::CSPRNG>>();
     ping = injector->create<std::shared_ptr<libp2p::protocol::Ping>>();
 
   } else {
@@ -86,7 +90,6 @@ int main() {
 
   host->start();
   host->listenProtocol(ping);
-  ping->start();
 
   if (isDialer) {
     auto address_str =
@@ -136,6 +139,7 @@ int main() {
     });
     io_context->run_for(timeout.remaining());
   } else {
+    ping->start();
     TRY_OR_SL_FATAL(host->listen(sample_peer.listen),
                     log,
                     "Error listening on {}: {}",
