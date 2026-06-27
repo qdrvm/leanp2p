@@ -124,15 +124,18 @@ int main() {
       SL_INFO(log, "Ping successful");
 
       auto handShakePlusOneRTT_ms =
-          std::chrono::duration_cast<std::chrono::milliseconds>(
+          std::chrono::duration_cast<std::chrono::microseconds>(
               handShakeEnd - handShakeStart);
       auto ping_rtt_ms =
-          std::chrono::duration_cast<std::chrono::milliseconds>(ping_rtt);
+          std::chrono::duration_cast<std::chrono::microseconds>(ping_rtt);
 
       SL_INFO(log, "latency:");
-      SL_INFO(
-          log, "  handshake_plus_one_rtt: {}", handShakePlusOneRTT_ms.count());
-      SL_INFO(log, "  ping_rtt: {}", ping_rtt_ms.count());
+      SL_INFO(log,
+              "  handshake_plus_one_rtt: {}",
+              static_cast<float>(handShakePlusOneRTT_ms.count() / 1000.0));
+      SL_INFO(log,
+              "  ping_rtt: {}",
+              static_cast<float>(ping_rtt_ms.count() / 1000.0));
       SL_INFO(log, "  unit: ms");
 
       io_context->stop();
