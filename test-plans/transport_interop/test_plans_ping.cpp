@@ -129,14 +129,12 @@ int main() {
       auto ping_rtt_ms =
           std::chrono::duration_cast<std::chrono::microseconds>(ping_rtt);
 
-      SL_INFO(log, "latency:");
-      SL_INFO(log,
-              "  handshake_plus_one_rtt: {}",
-              static_cast<float>(handShakePlusOneRTT_ms.count() / 1000.0));
-      SL_INFO(log,
-              "  ping_rtt: {}",
-              static_cast<float>(ping_rtt_ms.count() / 1000.0));
-      SL_INFO(log, "  unit: ms");
+      fmt::println("latency:");
+      fmt::println("  handshake_plus_one_rtt: {}",
+                   static_cast<float>(handShakePlusOneRTT_ms.count() / 1000.0));
+      fmt::println("  ping_rtt: {}",
+                   static_cast<float>(ping_rtt_ms.count() / 1000.0));
+      fmt::println("  unit: ms");
 
       io_context->stop();
     });
