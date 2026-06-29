@@ -7,7 +7,8 @@
 #include <libp2p/transport/quic/transport.hpp>
 #include <random>
 #include "../common.hpp"
-#include "libp2p/crypto/random_generator.hpp"
+
+using FloatMs = std::chrono::duration<float, std::milli>;
 
 int main() {
   setlinebuf(stdout);
@@ -64,7 +65,6 @@ int main() {
 
   std::shared_ptr<boost::asio::io_context> io_context;
   std::shared_ptr<libp2p::host::BasicHost> host;
-  std::shared_ptr<libp2p::crypto::random::CSPRNG> random;
   std::shared_ptr<libp2p::protocol::Ping> ping;
   std::shared_ptr<void> injector_lifetime;
   if (*transport == "quic-v1") {
@@ -80,8 +80,6 @@ int main() {
 
     io_context = injector->create<std::shared_ptr<boost::asio::io_context>>();
     host = injector->create<std::shared_ptr<libp2p::host::BasicHost>>();
-    random =
-        injector->create<std::shared_ptr<libp2p::crypto::random::CSPRNG>>();
     ping = injector->create<std::shared_ptr<libp2p::protocol::Ping>>();
 
   } else {
@@ -124,16 +122,13 @@ int main() {
       SL_INFO(log, "Ping successful");
 
       auto handShakePlusOneRTT_ms =
-          std::chrono::duration_cast<std::chrono::microseconds>(
-              handShakeEnd - handShakeStart);
-      auto ping_rtt_ms =
-          std::chrono::duration_cast<std::chrono::microseconds>(ping_rtt);
+          std::chrono::duration_cast<FloatMs>(handShakeEnd - handShakeStart);
+      auto ping_rtt_ms = std::chrono::duration_cast<FloatMs>(ping_rtt);
 
       fmt::println("latency:");
       fmt::println("  handshake_plus_one_rtt: {}",
-                   static_cast<float>(handShakePlusOneRTT_ms.count() / 1000.0));
-      fmt::println("  ping_rtt: {}",
-                   static_cast<float>(ping_rtt_ms.count() / 1000.0));
+                   handShakePlusOneRTT_ms.count());
+      fmt::println("  ping_rtt: {}", ping_rtt_ms.count());
       fmt::println("  unit: ms");
 
       io_context->stop();

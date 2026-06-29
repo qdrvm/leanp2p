@@ -21,7 +21,6 @@
     auto __r = (r);                                                 \
     if (not __r.has_value()) {                                      \
       SL_FATAL(log, format, __VA_ARGS__ __VA_OPT__(, ) __r.error()) \
-      std::abort();                                                 \
     }                                                               \
     __r.value();                                                    \
   })
