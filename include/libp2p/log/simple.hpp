@@ -16,6 +16,7 @@ namespace libp2p {
     sinks:
       - name: console
         type: console
+        stream: stderr
         color: true
         capacity: 4
         latency: 0

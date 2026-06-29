@@ -8,6 +8,8 @@
 #include <random>
 #include "../common.hpp"
 
+using FloatMs = std::chrono::duration<float, std::milli>;
+
 int main() {
   setlinebuf(stdout);
   setlinebuf(stderr);
@@ -86,7 +88,6 @@ int main() {
 
   host->start();
   host->listenProtocol(ping);
-  ping->start();
 
   if (isDialer) {
     auto address_str =
@@ -121,21 +122,20 @@ int main() {
       SL_INFO(log, "Ping successful");
 
       auto handShakePlusOneRTT_ms =
-          std::chrono::duration_cast<std::chrono::milliseconds>(
-              handShakeEnd - handShakeStart);
-      auto ping_rtt_ms =
-          std::chrono::duration_cast<std::chrono::milliseconds>(ping_rtt);
+          std::chrono::duration_cast<FloatMs>(handShakeEnd - handShakeStart);
+      auto ping_rtt_ms = std::chrono::duration_cast<FloatMs>(ping_rtt);
 
-      SL_INFO(log, "latency:");
-      SL_INFO(
-          log, "  handshake_plus_one_rtt: {}", handShakePlusOneRTT_ms.count());
-      SL_INFO(log, "  ping_rtt: {}", ping_rtt_ms.count());
-      SL_INFO(log, "  unit: ms");
+      fmt::println("latency:");
+      fmt::println("  handshake_plus_one_rtt: {}",
+                   handShakePlusOneRTT_ms.count());
+      fmt::println("  ping_rtt: {}", ping_rtt_ms.count());
+      fmt::println("  unit: ms");
 
       io_context->stop();
     });
     io_context->run_for(timeout.remaining());
   } else {
+    ping->start();
     TRY_OR_SL_FATAL(host->listen(sample_peer.listen),
                     log,
                     "Error listening on {}: {}",
