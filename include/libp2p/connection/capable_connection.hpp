@@ -8,6 +8,7 @@
 
 #include <functional>
 
+#include <libp2p/basic/poll.hpp>
 #include <libp2p/connection/secure_connection.hpp>
 
 namespace libp2p::connection {
@@ -59,13 +60,13 @@ namespace libp2p::connection {
      */
     virtual void newStream(StreamHandlerFunc cb) = 0;
 
-    /**
-     * @brief Opens new stream in a coroutine manner
-     * @return Awaitable result of a new Stream or error
-     */
-    virtual CoroOutcome<std::shared_ptr<Stream>> newStreamCoroutine() = 0;
-
     virtual CoroOutcome<std::shared_ptr<connection::Stream>> acceptStream() = 0;
+
+    /**
+     * Add unreliable datagram to send queue.
+     * Destroy to cancel.
+     */
+    virtual std::shared_ptr<PollFuture> sendDatagram(BytesIn message) = 0;
   };
 
 }  // namespace libp2p::connection

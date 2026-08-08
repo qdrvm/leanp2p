@@ -61,6 +61,14 @@ namespace libp2p::injector {
         std::move(config))[boost::di::override];
   }
 
+  inline auto enableDatagram() {
+    OnDatagramConfig config;
+    config.enable_datagram = true;
+    return boost::di::bind<OnDatagramConfig>().to(
+        std::make_shared<OnDatagramConfig>(
+            std::move(config)))[boost::di::override];
+  }
+
   /**
    * @brief Main function that creates Host Injector.
    * This creates a complete BasicHost with all network dependencies.

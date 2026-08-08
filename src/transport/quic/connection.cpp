@@ -86,9 +86,6 @@ namespace libp2p::transport {
     cb(newStream());
   }
 
-  CoroOutcome<std::shared_ptr<connection::Stream>>
-  QuicConnection::newStreamCoroutine() {}
-
   outcome::result<std::shared_ptr<libp2p::connection::Stream>>
   QuicConnection::newStream() {
     if (not conn_ctx_) {
@@ -101,6 +98,10 @@ namespace libp2p::transport {
   CoroOutcome<std::shared_ptr<connection::Stream>>
   QuicConnection::acceptStream() {
     co_return co_await stream_signal_.receive();
+  }
+
+  std::shared_ptr<PollFuture> QuicConnection::sendDatagram(BytesIn message) {
+    return conn_ctx_->engine->sendDatagram(conn_ctx_, message);
   }
 
   void QuicConnection::onStream(std::shared_ptr<connection::Stream> stream) {
