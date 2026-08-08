@@ -194,6 +194,11 @@ namespace libp2p::protocol::gossip {
     size_t opportunistic_graft_ticks = 60;
     size_t opportunistic_graft_peers = 2;
 
+    /// Number of peers from the mesh to which we propagate messages.
+    /// Peers are selected by the smallest RTT.
+    /// If -1, propagate to all peers in the mesh.
+    int soon_delta = -1;
+
     ScoreConfig score;
   };
 }  // namespace libp2p::protocol::gossip

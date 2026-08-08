@@ -24,6 +24,7 @@
 #include <libp2p/peer/key_repository/inmem_key_repository.hpp>
 #include <libp2p/peer/peer_repository.hpp>
 #include <libp2p/peer/protocol_repository/inmem_protocol_repository.hpp>
+#include <libp2p/peer/rtt_repository/inmem_rtt_repository.hpp>
 #include <libp2p/peer/user_agent_repository/inmem_user_agent_repository.hpp>
 #include <libp2p/protocol/gossip/config.hpp>
 #include <libp2p/protocol_muxer/multiselect.hpp>
@@ -99,6 +100,7 @@ namespace libp2p::injector {
         di::bind<peer::KeyRepository>.to<peer::InmemKeyRepository>(),
         di::bind<peer::AddressRepository>.to<peer::InmemAddressRepository>(),
         di::bind<peer::ProtocolRepository>.to<peer::InmemProtocolRepository>(),
+        di::bind<peer::RttRepository>.to<peer::InmemRttRepository>(),
         di::bind<peer::UserAgentRepository>.to<peer::InmemUserAgentRepository>(),
         di::bind<protocol_muxer::ProtocolMuxer>.to<protocol_muxer::multiselect::Multiselect>(),
         di::bind<crypto::validator::KeyValidator>.to<crypto::validator::KeyValidatorImpl>(),

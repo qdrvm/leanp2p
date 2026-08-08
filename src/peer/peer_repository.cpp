@@ -24,14 +24,17 @@ namespace libp2p::peer {
       std::shared_ptr<AddressRepository> addr_repo,
       std::shared_ptr<KeyRepository> key_repo,
       std::shared_ptr<ProtocolRepository> protocol_repo,
+      std::shared_ptr<RttRepository> rtt_repo,
       std::shared_ptr<UserAgentRepository> uagent_repository)
       : addr_(std::move(addr_repo)),
         key_(std::move(key_repo)),
-        proto_(std::move(protocol_repo)) ,
+        proto_(std::move(protocol_repo)),
+        rtt_(std::move(rtt_repo)),
         uagent_(std::move(uagent_repository)) {
     BOOST_ASSERT(addr_ != nullptr);
     BOOST_ASSERT(key_ != nullptr);
     BOOST_ASSERT(proto_ != nullptr);
+    BOOST_ASSERT(rtt_ != nullptr);
     BOOST_ASSERT(uagent_ != nullptr);
   }
 
@@ -47,6 +50,10 @@ namespace libp2p::peer {
     return *proto_;
   }
 
+  RttRepository &PeerRepository::getRttRepository() {
+    return *rtt_;
+  }
+
   UserAgentRepository &PeerRepository::getUserAgentRepository() {
     return *uagent_;
   }
@@ -56,6 +63,8 @@ namespace libp2p::peer {
     merge_sets<PeerId>(peers, addr_->getPeers());
     merge_sets<PeerId>(peers, key_->getPeers());
     merge_sets<PeerId>(peers, proto_->getPeers());
+    // RttRepository doesn't have getPeers() yet, but it's fine.
+    // Usually peers in RttRepository should be in others too.
     return peers;
   }
 
