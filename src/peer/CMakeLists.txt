@@ -21,6 +21,7 @@ libp2p_add_library(p2p_peer_id
     )
 target_link_libraries(p2p_peer_id
     Boost::boost
+    p2p_key_validator
     p2p_multihash
     p2p_multibase_codec
     p2p_sha
