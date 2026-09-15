@@ -144,7 +144,7 @@ struct fmt::formatter<libp2p::peer::PeerId> {
     auto &&b58 = peer_id.toBase58();
 
     if (presentation == 's') {
-      static constexpr string_view message("…");
+      static const string_view message("…");
       auto out = std::copy(message.begin(), message.end(), ctx.out());
       return std::copy_n(
           b58.begin() + (b58.size() - std::min<size_t>(6, b58.size())),
