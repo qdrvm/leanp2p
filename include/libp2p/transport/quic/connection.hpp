@@ -61,6 +61,8 @@ namespace libp2p::transport {
     void newStream(StreamHandlerFunc cb) override;
     outcome::result<std::shared_ptr<connection::Stream>> newStream() override;
     CoroOutcome<std::shared_ptr<connection::Stream>> acceptStream() override;
+    bool datagramsEnabled() const override;
+    size_t maxDatagramSize() const override;
     std::shared_ptr<PollFuture> sendDatagram(BytesIn message) override;
 
     void onClose();

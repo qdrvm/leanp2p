@@ -61,12 +61,19 @@ namespace libp2p::injector {
         std::move(config))[boost::di::override];
   }
 
-  inline auto enableDatagram() {
-    OnDatagramConfig config;
-    config.enable_datagram = true;
+  /**
+   * @brief Enable unreliable QUIC datagrams.
+   *
+   * Both peers must enable them for datagrams to be usable on a connection.
+   * @param on_datagram handler for incoming datagrams; when empty, incoming
+   * datagrams are discarded and only sending is available.
+   */
+  inline auto enableDatagram(OnDatagram on_datagram = {}) {
+    auto config = std::make_shared<OnDatagramConfig>();
+    config->enable_datagram = true;
+    config->on_datagram = std::move(on_datagram);
     return boost::di::bind<OnDatagramConfig>().to(
-        std::make_shared<OnDatagramConfig>(
-            std::move(config)))[boost::di::override];
+        std::move(config))[boost::di::override];
   }
 
   /**

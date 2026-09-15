@@ -19,10 +19,70 @@
 #include <qtils/option_take.hpp>
 
 namespace libp2p::transport::lsquic {
+  /// DATAGRAM frame type byte plus the largest length varint lsquic writes.
+  constexpr size_t kDatagramFrameOverhead = 1 + 4;
+
+  /**
+   * Payload that fits into a QUIC packet on any path:
+   *   1280 (smallest IPv6 MTU) - 40 (IPv6) - 8 (UDP) = 1232 packet
+   *   1232 - 1 (flags) - 20 (max DCID) - 4 (packet number) - 16 (AEAD tag)
+   *        = 1191 frame budget
+   *   1191 - kDatagramFrameOverhead = 1186
+   */
+  constexpr size_t kMaxGuaranteedDatagramPayload = 1186;
+
+  class SendDatagramFuture : public PollFuture {
+   public:
+    SendDatagramFuture(std::shared_ptr<boost::asio::io_context> io_context,
+                       qtils::ByteVec message)
+        : io_context{std::move(io_context)}, message{std::move(message)} {}
+
+    std::optional<outcome::result<void>> poll(PollWaker waker) override {
+      if (result) {
+        return result;
+      }
+      if (waker) {
+        last_waker.emplace(std::move(waker));
+      }
+      return std::nullopt;
+    }
+
+    void cancel() override {
+      // The entry stays queued until it reaches the head, where it is
+      // dropped instead of being written.
+      complete(DatagramError::CANCELLED);
+    }
+
+    /**
+     * Set the terminal result and wake the caller, if it is still waiting.
+     */
+    void complete(outcome::result<void> value) {
+      if (result) {
+        return;
+      }
+      result.emplace(std::move(value));
+      if (auto waker = qtils::optionTake(last_waker)) {
+        boost::asio::post(*io_context, *waker);
+      }
+    }
+
+    bool completed() const {
+      return result.has_value();
+    }
+
+    std::shared_ptr<boost::asio::io_context> io_context;
+    qtils::ByteVec message;
+    std::optional<outcome::result<void>> result;
+    std::optional<PollWaker> last_waker;
+  };
+
+  /**
+   * First datagram still waiting to be written, dropping cancelled entries.
+   */
   inline std::shared_ptr<SendDatagramFuture> nextDatagram(ConnCtx *conn_ctx) {
     while (not conn_ctx->datagram_send_queue.empty()) {
-      auto &weak_future = conn_ctx->datagram_send_queue.front();
-      if (auto future = weak_future.lock()) {
+      auto &future = conn_ctx->datagram_send_queue.front();
+      if (not future->completed()) {
         return future;
       }
       conn_ctx->datagram_send_queue.pop_front();
@@ -30,22 +90,41 @@ namespace libp2p::transport::lsquic {
     return nullptr;
   }
 
-  class SendDatagramFuture : public PollFuture {
-   public:
-    SendDatagramFuture(qtils::ByteVec message) : message{std::move(message)} {}
-
-    bool poll(PollWaker waker) override {
-      if (completed) {
-        return true;
+  /**
+   * Ask lsquic to write the datagram at the head of the queue.
+   * Entries lsquic refuses outright are failed and skipped, so that one bad
+   * datagram cannot block the ones behind it.
+   */
+  inline void armDatagramWrite(ConnCtx *conn_ctx) {
+    while (auto future = nextDatagram(conn_ctx)) {
+      // Refused when datagrams were not negotiated, or when the payload is
+      // larger than USHRT_MAX or than the peer's advertised maximum.
+      if (lsquic_conn_set_min_datagram_size(conn_ctx->ls_conn,
+                                            future->message.size())
+          != 0) {
+        future->complete(conn_ctx->engine->datagramsEnabled(conn_ctx)
+                             ? DatagramError::TOO_LARGE
+                             : DatagramError::NOT_NEGOTIATED);
+        continue;
       }
-      last_waker.emplace(std::move(waker));
-      return false;
+      if (lsquic_conn_want_datagram_write(conn_ctx->ls_conn, 1) < 0) {
+        future->complete(DatagramError::NOT_NEGOTIATED);
+        continue;
+      }
+      return;
     }
+    lsquic_conn_want_datagram_write(conn_ctx->ls_conn, 0);
+  }
 
-    qtils::ByteVec message;
-    bool completed = false;
-    std::optional<PollWaker> last_waker;
-  };
+  /**
+   * Fail every queued datagram, e.g. when the connection goes away.
+   */
+  inline void failDatagrams(ConnCtx *conn_ctx, DatagramError error) {
+    auto queue = std::exchange(conn_ctx->datagram_send_queue, {});
+    for (auto &future : queue) {
+      future->complete(error);
+    }
+  }
 
   inline boost::asio::ip::udp::endpoint endpointFrom(const sockaddr *raw) {
     boost::asio::ip::udp::endpoint endpoint;
@@ -123,6 +202,9 @@ namespace libp2p::transport::lsquic {
       if (auto op = qtils::optionTake(conn_ctx->connecting)) {
         op->cb(QuicError::CONN_CLOSED);
       }
+      // Must happen before `conn_ctx` is destroyed, otherwise anyone waiting
+      // on a queued datagram waits forever.
+      failDatagrams(conn_ctx, DatagramError::CONN_CLOSED);
       if (auto conn = conn_ctx->conn.lock()) {
         conn->onClose();
       }
@@ -236,44 +318,47 @@ namespace libp2p::transport::lsquic {
       if (not on_datagram) {
         return;
       }
-      auto connection = conn_ctx->conn.lock();
-      if (not connection) {
+      if (conn_ctx->conn.expired()) {
         return;
       }
+      // `buffer` is only valid for the duration of this callback, which runs
+      // inside `lsquic_engine_packet_in`, so copy before deferring.
       qtils::ByteVec message{
           std::span{static_cast<const uint8_t *>(buffer), buffer_size}};
-      boost::asio::post(*conn_ctx->engine->io_context_,
-                        [on_datagram,
-                         connection{std::move(connection)},
-                         message{std::move(message)}] {
-                          on_datagram(std::move(connection),
-                                      std::move(message));
-                        });
+      boost::asio::post(
+          *conn_ctx->engine->io_context_,
+          [on_datagram,
+           weak_connection{conn_ctx->conn},
+           message{std::move(message)}]() mutable {
+            // The connection may have been closed by the time this runs, for
+            // example when the same read cycle also delivered CONNECTION_CLOSE.
+            // Dropping the datagram is consistent with unreliable delivery.
+            auto connection = weak_connection.lock();
+            if (not connection or connection->isClosed()) {
+              return;
+            }
+            on_datagram(std::move(connection), std::move(message));
+          });
     };
     stream_if.on_dg_write = +[](lsquic_conn_t *conn,
                                 void *buffer,
-                                size_t buffer_size) {
+                                size_t buffer_size) -> ssize_t {
       // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
       auto conn_ctx = reinterpret_cast<ConnCtx *>(lsquic_conn_get_ctx(conn));
       ssize_t result = -1;
       if (auto future = nextDatagram(conn_ctx)) {
-        conn_ctx->datagram_send_queue.pop_front();
         if (buffer_size < future->message.size()) {
-          throw std::logic_error{"stream_if.on_dg_write buffer is too small"};
+          // Not enough room left in this packet. Keep the datagram queued;
+          // lsquic calls back once there is a packet that can hold it.
+          // Never throw: this runs inside lsquic's frame generator.
+          return -1;
         }
         memcpy(buffer, future->message.data(), future->message.size());
-        result = future->message.size();
-        future->completed = true;
-        if (auto waker = qtils::optionTake(future->last_waker)) {
-          boost::asio::post(*conn_ctx->engine->io_context_, *waker);
-        }
+        result = static_cast<ssize_t>(future->message.size());
+        conn_ctx->datagram_send_queue.pop_front();
+        future->complete(outcome::success());
       }
-      if (auto future = nextDatagram(conn_ctx)) {
-        lsquic_conn_set_min_datagram_size(conn_ctx->ls_conn,
-                                          future->message.size());
-      } else {
-        lsquic_conn_want_datagram_write(conn_ctx->ls_conn, 0);
-      }
+      armDatagramWrite(conn_ctx);
       return result;
     };
 
@@ -389,13 +474,46 @@ namespace libp2p::transport::lsquic {
     return stream;
   }
 
+  bool Engine::datagramsEnabled(ConnCtx *conn_ctx) const {
+    return lsquic_conn_get_max_datagram_size(conn_ctx->ls_conn) != 0;
+  }
+
+  size_t Engine::maxDatagramSize(ConnCtx *conn_ctx) const {
+    // Size of the DATAGRAM frame the peer is willing to accept, per RFC 9221
+    // `max_datagram_frame_size`. It covers the frame header, not just the
+    // payload.
+    auto max_frame = lsquic_conn_get_max_datagram_size(conn_ctx->ls_conn);
+    if (max_frame <= kDatagramFrameOverhead) {
+      return 0;
+    }
+    // A datagram is never fragmented or retransmitted, so one that does not
+    // fit into a single packet would stay queued forever. Stay within the
+    // payload every QUIC path is guaranteed to carry.
+    return std::min(max_frame - kDatagramFrameOverhead,
+                    kMaxGuaranteedDatagramPayload);
+  }
+
   std::shared_ptr<PollFuture> Engine::sendDatagram(ConnCtx *conn_ctx,
                                                    BytesIn message) {
-    auto future = std::make_shared<SendDatagramFuture>(message);
+    auto max_size = maxDatagramSize(conn_ctx);
+    if (max_size == 0) {
+      return makeReadyPollFuture(DatagramError::NOT_NEGOTIATED);
+    }
+    if (message.size() > max_size) {
+      return makeReadyPollFuture(DatagramError::TOO_LARGE);
+    }
+    if (conn_ctx->datagram_send_queue.size()
+        >= on_datagram_config_->max_send_queue) {
+      return makeReadyPollFuture(DatagramError::QUEUE_FULL);
+    }
+    auto future = std::make_shared<SendDatagramFuture>(
+        io_context_, qtils::ByteVec{message});
     conn_ctx->datagram_send_queue.emplace_back(future);
-    if (nextDatagram(conn_ctx) == future) {
-      lsquic_conn_set_min_datagram_size(conn_ctx->ls_conn, message.size());
-      lsquic_conn_want_datagram_write(conn_ctx->ls_conn, 1);
+    armDatagramWrite(conn_ctx);
+    if (not future->completed()) {
+      // lsquic marked the connection tickable; the engine still has to be
+      // driven, otherwise the datagram waits for unrelated traffic.
+      wantProcess();
     }
     return future;
   }

@@ -100,7 +100,24 @@ namespace libp2p::transport {
     co_return co_await stream_signal_.receive();
   }
 
+  bool QuicConnection::datagramsEnabled() const {
+    if (not conn_ctx_) {
+      return false;
+    }
+    return conn_ctx_->engine->datagramsEnabled(conn_ctx_);
+  }
+
+  size_t QuicConnection::maxDatagramSize() const {
+    if (not conn_ctx_) {
+      return 0;
+    }
+    return conn_ctx_->engine->maxDatagramSize(conn_ctx_);
+  }
+
   std::shared_ptr<PollFuture> QuicConnection::sendDatagram(BytesIn message) {
+    if (not conn_ctx_) {
+      return makeReadyPollFuture(DatagramError::CONN_CLOSED);
+    }
     return conn_ctx_->engine->sendDatagram(conn_ctx_, message);
   }
 

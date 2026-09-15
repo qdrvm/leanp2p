@@ -72,7 +72,11 @@ namespace libp2p::transport::lsquic {
     std::optional<Connecting> connecting{};
     std::optional<std::shared_ptr<connection::QuicStream>> new_stream{};
     std::weak_ptr<QuicConnection> conn{};
-    std::deque<std::weak_ptr<SendDatagramFuture>> datagram_send_queue;
+    /**
+     * Datagrams waiting to be written into an outgoing packet. Entries are
+     * owned here, not by the caller, so a discarded future still gets sent.
+     */
+    std::deque<std::shared_ptr<SendDatagramFuture>> datagram_send_queue;
   };
 
   /**
@@ -119,6 +123,8 @@ namespace libp2p::transport::lsquic {
         const boost::asio::ip::udp::endpoint &remote, const PeerId &peer);
     outcome::result<std::shared_ptr<connection::QuicStream>> newStream(
         ConnCtx *conn_ctx);
+    bool datagramsEnabled(ConnCtx *conn_ctx) const;
+    size_t maxDatagramSize(ConnCtx *conn_ctx) const;
     std::shared_ptr<PollFuture> sendDatagram(ConnCtx *conn_ctx,
                                              BytesIn message);
     ConnectionPtrCoroOutcome asyncAccept();

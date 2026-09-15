@@ -1,0 +1,82 @@
+diff --git a/include/lsquic.h b/include/lsquic.h
+--- a/include/lsquic.h
++++ b/include/lsquic.h
+@@ -1813,6 +1813,13 @@
+ int
+ lsquic_conn_set_min_datagram_size (lsquic_conn_t *, size_t sz);
+ 
++/* Get maximum datagram size negotiated with the peer.  Returns zero when
++ * datagrams have not been negotiated on this connection, in which case
++ * datagrams cannot be sent.
++ */
++size_t
++lsquic_conn_get_max_datagram_size (lsquic_conn_t *);
++
+ struct lsquic_logger_if {
+     int     (*log_buf)(void *logger_ctx, const char *buf, size_t len);
+ };
+diff --git a/src/liblsquic/lsquic_conn.h b/src/liblsquic/lsquic_conn.h
+--- a/src/liblsquic/lsquic_conn.h
++++ b/src/liblsquic/lsquic_conn.h
+@@ -289,6 +289,10 @@
+     /* Optional method */
+     size_t
+     (*ci_get_min_datagram_size) (struct lsquic_conn *);
++
++    /* Optional method */
++    size_t
++    (*ci_get_max_datagram_size) (struct lsquic_conn *);
+ 
+     /* Optional method */
+     void
+diff --git a/src/liblsquic/lsquic_conn.c b/src/liblsquic/lsquic_conn.c
+--- a/src/liblsquic/lsquic_conn.c
++++ b/src/liblsquic/lsquic_conn.c
+@@ -305,6 +305,16 @@
+ {
+     if (lconn->cn_if && lconn->cn_if->ci_get_min_datagram_size)
+         return lconn->cn_if->ci_get_min_datagram_size(lconn);
++    else
++        return 0;
++}
++
++
++size_t
++lsquic_conn_get_max_datagram_size (struct lsquic_conn *lconn)
++{
++    if (lconn->cn_if && lconn->cn_if->ci_get_max_datagram_size)
++        return lconn->cn_if->ci_get_max_datagram_size(lconn);
+     else
+         return 0;
+ }
+diff --git a/src/liblsquic/lsquic_full_conn_ietf.c b/src/liblsquic/lsquic_full_conn_ietf.c
+--- a/src/liblsquic/lsquic_full_conn_ietf.c
++++ b/src/liblsquic/lsquic_full_conn_ietf.c
+@@ -8072,7 +8072,19 @@
+     return (size_t) conn->ifc_min_dg_sz;
+ }
+ 
++
++static size_t
++ietf_full_conn_ci_get_max_datagram_size (struct lsquic_conn *lconn)
++{
++    struct ietf_full_conn *conn = (struct ietf_full_conn *) lconn;
+ 
++    if (conn->ifc_flags & IFC_DATAGRAMS)
++        return (size_t) conn->ifc_max_dg_sz;
++    else
++        return 0;
++}
++
++
+ static int
+ ietf_full_conn_ci_set_min_datagram_size (struct lsquic_conn *lconn,
+                                                             size_t new_size)
+@@ -8831,6 +8843,7 @@
+     .ci_early_data_failed    =  ietf_full_conn_ci_early_data_failed, \
+     .ci_get_engine           =  ietf_full_conn_ci_get_engine, \
+     .ci_get_log_cid          =  ietf_full_conn_ci_get_log_cid, \
++    .ci_get_max_datagram_size=  ietf_full_conn_ci_get_max_datagram_size, \
+     .ci_get_min_datagram_size=  ietf_full_conn_ci_get_min_datagram_size, \
+     .ci_get_path             =  ietf_full_conn_ci_get_path, \
+     .ci_going_away           =  ietf_full_conn_ci_going_away, \

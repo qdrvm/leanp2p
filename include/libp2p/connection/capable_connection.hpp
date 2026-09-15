@@ -9,6 +9,7 @@
 #include <functional>
 
 #include <libp2p/basic/poll.hpp>
+#include <libp2p/connection/on_datagram.hpp>
 #include <libp2p/connection/secure_connection.hpp>
 
 namespace libp2p::connection {
@@ -63,10 +64,39 @@ namespace libp2p::connection {
     virtual CoroOutcome<std::shared_ptr<connection::Stream>> acceptStream() = 0;
 
     /**
-     * Add unreliable datagram to send queue.
-     * Destroy to cancel.
+     * Whether unreliable datagrams are available on this connection.
+     * Only meaningful after the handshake has completed, since it depends on
+     * what the peer advertised.
      */
-    virtual std::shared_ptr<PollFuture> sendDatagram(BytesIn message) = 0;
+    virtual bool datagramsEnabled() const {
+      return false;
+    }
+
+    /**
+     * Largest payload `sendDatagram` will accept, or 0 when datagrams are
+     * not available.
+     */
+    virtual size_t maxDatagramSize() const {
+      return 0;
+    }
+
+    /**
+     * Queue an unreliable datagram to be sent.
+     *
+     * The message is copied, and the queue entry is owned by the connection,
+     * so the returned future may be discarded for fire-and-forget delivery.
+     *
+     * The future completes once the payload has been written into an
+     * outgoing QUIC packet. That is not a delivery acknowledgement:
+     * datagrams are neither retransmitted nor acked. It completes with a
+     * `DatagramError` if the datagram cannot be queued or is dropped before
+     * being written.
+     *
+     * The default implementation fails with `DatagramError::UNSUPPORTED`.
+     */
+    virtual std::shared_ptr<PollFuture> sendDatagram(BytesIn /*message*/) {
+      return makeReadyPollFuture(DatagramError::UNSUPPORTED);
+    }
   };
 
 }  // namespace libp2p::connection

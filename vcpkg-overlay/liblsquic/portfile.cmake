@@ -13,6 +13,7 @@ vcpkg_from_github(OUT_SOURCE_PATH SOURCE_PATH
         disable-asan.patch
         fix-found-boringssl.patch
         lsquic_conn_ssl.patch
+        lsquic_conn_max_datagram_size.patch
 )
 
 # Submodules
